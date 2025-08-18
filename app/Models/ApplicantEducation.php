@@ -10,7 +10,7 @@ class ApplicantEducation extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', 'institution', 'degree', 'field_of_study', 'education_level', 'start_date', 'end_date'
+        'user_id', 'institution', 'degree', 'field_of_study', 'education_level',  'status', 'expected_graduation','start_date', 'end_date'
     ];
 
     public function user()

@@ -11,7 +11,7 @@ use App\Http\Controllers\DepartmentController;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Auth\LinkedInController;
 use App\Http\Controllers\ReportController;
-use App\Http\Controllers\SkillController;
+use App\Http\Controllers\ShortlistingSettingController;
 
 Route::get('/', [HomeController::class, 'home'])->name('home');
 
@@ -94,6 +94,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports/export/pdf', [ReportController::class, 'exportPdf'])->name('reports.export.pdf');
     Route::get('/reports/export/csv', [ReportController::class, 'exportCsv'])->name('reports.export.csv');
     Route::post('/skills', [\App\Http\Controllers\SkillController::class, 'store'])->name('skills.store');
+
+    Route::get('shortlisting-settings', [ShortlistingSettingController::class, 'index'])->name('shortlisting-settings.index');
+    Route::post('shortlisting-settings', [ShortlistingSettingController::class, 'update'])->name('shortlisting-settings.update');
 
 
 });

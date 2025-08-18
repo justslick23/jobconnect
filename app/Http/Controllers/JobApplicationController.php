@@ -9,6 +9,9 @@ use App\Mail\OfferLetterMail;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\View;
 use App\Models\JobApplication;
+use App\Models\ShortlistingSetting;
+use App\Mail\JobApplicationSubmitted;
+
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -43,25 +46,31 @@ class JobApplicationController extends Controller
     {
         $user = Auth::user();
     
-        $query = JobApplication::with(['user', 'jobRequisition']);
+        // Base query with eager loading of related user, job requisition, and score
+        $query = JobApplication::with(['user', 'jobRequisition', 'score']);
     
-        // Filter by requisition if requested
+        // Filter by job requisition if provided in request
         if ($request->filled('job_requisition_id')) {
             $query->where('job_requisition_id', $request->job_requisition_id);
         }
     
-        // For applicants: show only their applications and related job requisitions
+        // If logged in user is applicant, only show their own applications
         if ($user->isApplicant()) {
             $query->where('user_id', $user->id);
         }
     
+        // Get the latest applications
         $applications = $query->latest()->get();
     
-        // Job requisitions to show (only ones this user applied for, if applicant)
+        // For applicants: get only job requisitions they applied to
+        // For others (HR/admin): get all job requisitions ordered by creation date
         $jobRequisitions = $user->isApplicant()
-            ? JobRequisition::whereIn('id', $applications->pluck('job_requisition_id'))->get()
-            : JobRequisition::all();
+            ? JobRequisition::whereIn('id', $applications->pluck('job_requisition_id'))
+                ->orderBy('created_at', 'desc')
+                ->get()
+            : JobRequisition::orderBy('created_at', 'desc')->get();
     
+        // Return view with applications and job requisitions
         return view('job_applications.index', compact('applications', 'jobRequisitions'));
     }
     
@@ -293,71 +302,35 @@ class JobApplicationController extends Controller
     /**
      * Optional: Send notification to applicant about status change
      */
-    private function notifyApplicant(JobApplication $application, $action)
-    {
-        // Implement notification logic here
-        // This could be email, SMS, or in-app notification
-        
-        try {
-            $messages = [
-                'shortlist' => 'Congratulations! Your application has been shortlisted.',
-                'reject' => 'Thank you for your interest. Unfortunately, we will not be moving forward with your application.',
-                'offer_sent' => 'Great news! We have sent you a job offer.',
-                'hired' => 'Welcome to the team! Your application has been approved.'
-            ];
-            
-            $message = $messages[$action] ?? 'Your application status has been updated.';
-            
-            // Example: Send email notification
-            // Mail::to($application->user->email)->send(new ApplicationStatusNotification($application, $message));
-            
-            Log::info('Notification sent to applicant', [
-                'application_id' => $application->id,
-                'user_email' => $application->user->email,
-                'action' => $action
-            ]);
-            
-        } catch (\Exception $e) {
-            Log::error('Failed to send notification to applicant', [
-                'application_id' => $application->id,
-                'action' => $action,
-                'error' => $e->getMessage()
-            ]);
-        }
-    }
+ 
 
 
-
-public function show($uuid)
-{
-    $user = auth()->user();
-
-    $job_application = JobApplication::where('uuid', $uuid)->with([
-        'jobRequisition.department',
-        'user.skills',
-        'user.experiences',
-        'user.education',
-        'user.qualifications',
-        'user.attachments',
-    ])->firstOrFail();
-
-    $interview = $job_application->interview;
-
-    if ($user->isApplicant() && $job_application->user_id !== $user->id) {
-        abort(403, 'Unauthorized access.');
-    }
-
-    if ($user->isHrAdmin() && $job_application->user_id === $user->id) {
-        abort(403, 'Unauthorized access.');
-    }
-    $job_application->jobRequisition->autoShortlistApplicants();
-
-    return view('job_applications.show', [
-        'application' => $job_application,
-        'interview' => $interview,
-    ]);
-}
-
+     public function show($uuid)
+     {
+         $user = auth()->user();
+     
+         // Find job application by UUID with 'score' eager loaded
+         $job_application = JobApplication::with('score')->where('uuid', $uuid)->firstOrFail();
+         $settings = ShortlistingSetting::first();
+     
+         // Authorization checks
+         if ($user->isApplicant() && $job_application->user_id !== $user->id) {
+             abort(403, 'Unauthorized access.');
+         }
+     
+         if ($user->isHrAdmin() && $job_application->user_id === $user->id) {
+             abort(403, 'Unauthorized access.');
+         }
+     
+         $interview = $job_application->interview;
+     
+         return view('job_applications.show', [
+             'application' => $job_application,
+             'interview' => $interview,
+             'settings' => $settings
+         ]);
+     }
+     
 
     
 
@@ -382,7 +355,8 @@ public function show($uuid)
         // You can also attach or serialize other profile info if desired, but usually you link to user only.
     
         $application->save();
-    
+        Mail::to($user->email)->send(new JobApplicationSubmitted($application));
+
 
         return redirect()->route('job-applications.index')->with('success', 'Application submitted!');
     }
@@ -516,90 +490,7 @@ public function submitReview(Request $request, JobApplication $application)
      * @param  int|string  $jobRequisitionId
      * @return \Illuminate\Http\RedirectResponse
      */
-    public function autoShortlistApplications($jobRequisitionId)
-    {
-        // Load job with required skills
-        $job = JobRequisition::with('skills')->findOrFail($jobRequisitionId);
-
-        // Fetch all pending applications for this job
-        $applications = JobApplication::with([
-            'user.skills',       // Applicant skills
-            'user.education',    // Applicant education
-            'user.experiences',  // Applicant experiences
-        ])->where('job_requisition_id', $job->id)
-          ->where('status', 'pending')
-          ->get();
-
-        $educationRank = [
-            'certificate' => 1,
-            'diploma' => 2,
-            'bachelor' => 3,
-            'honours' => 4,
-            'masters' => 5,
-            'phd' => 6,
-        ];
-
-        $shortlistedCount = 0;
-
-        foreach ($applications as $application) {
-            $user = $application->user;
-
-            if (!$user) {
-                continue; // Skip if no user linked
-            }
-
-            // 1) Check skills match - all required skills must be possessed
-            $requiredSkillIds = $job->skills->pluck('id')->toArray();
-            $applicantSkillIds = $user->skills->pluck('skill_id')->toArray();
-
-            $hasAllSkills = empty(array_diff($requiredSkillIds, $applicantSkillIds));
-
-            if (!$hasAllSkills) {
-                continue; // missing some required skills
-            }
-
-            // 2) Check minimum education level
-            $minEducation = strtolower($job->education_level ?? '');
-
-            if ($minEducation && isset($educationRank[$minEducation])) {
-                // Find highest education rank applicant has
-                $maxApplicantEduRank = $user->education
-                    ->map(fn($edu) => $educationRank[strtolower($edu->education_level)] ?? 0)
-                    ->max();
-
-                if ($maxApplicantEduRank < $educationRank[$minEducation]) {
-                    continue; // education level too low
-                }
-            }
-
-            // 3) Check minimum years of experience
-            $minExperience = (int) $job->min_experience;
-
-            if ($minExperience > 0) {
-                $totalExperienceYears = 0;
-
-                foreach ($user->experiences as $exp) {
-                    $start = $exp->start_date ? \Carbon\Carbon::parse($exp->start_date) : null;
-                    $end = $exp->end_date ? \Carbon\Carbon::parse($exp->end_date) : \Carbon\Carbon::now();
-
-                    if ($start) {
-                        $totalExperienceYears += $end->floatDiffInYears($start);
-                    }
-                }
-
-                if ($totalExperienceYears < $minExperience) {
-                    continue; // not enough experience
-                }
-            }
-
-            // If all checks passed, shortlist
-            $application->status = 'shortlisted';
-            $application->save();
-            $shortlistedCount++;
-        }
-
-        return redirect()->back()->with('success', "Auto-shortlisted {$shortlistedCount} applications.");
-    }
+ 
 
 
 }

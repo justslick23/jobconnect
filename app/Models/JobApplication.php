@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use App\Models\ApplicationScore;
 
 class JobApplication extends Model
 {
@@ -17,14 +18,12 @@ class JobApplication extends Model
         'submitted_at',
         'notes',
         'uuid',
-        'score',
-        'score_breakdown', // new  // add uuid here so you can mass assign if needed
+
     ];
 
     protected $casts = [
         'submitted_at' => 'datetime',
-        'score' => 'float',
-        'score_breakdown' => 'array',
+
     ];
 
     // Keep default primaryKey = 'id', no override
@@ -37,22 +36,17 @@ class JobApplication extends Model
                 $model->uuid = (string) Str::uuid();
             }
         });
-
-        static::created(function ($application) {
-            // Run auto-shortlist for the job requisition when a new application is created
-            $application->jobRequisition->autoShortlistApplicants();
-        });
-    
-        static::updated(function ($application) {
-            // Optionally also run after updates if needed
-            $application->jobRequisition->autoShortlistApplicants();
-        });
     }
 
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function score()
+    {
+        return $this->hasOne(ApplicationScore::class, 'application_id');
     }
 
     public function jobRequisition()

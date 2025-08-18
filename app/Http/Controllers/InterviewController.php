@@ -57,24 +57,22 @@ class InterviewController extends Controller
         $request->validate([
             'job_application_id' => 'required|exists:job_applications,id',
             'interview_date' => 'required|date',
-            'applicant_id' => 'required|exists:users,id',  // validate applicant id
-
         ]);
-
-        $application = JobApplication::findOrFail($request->job_application_id);
-        $application->status = "shortlisted"; // Update application status to shortlisted
-        $application->save(); // Save the updated application status
-
-
     
-        Interview::create([
+        $application = JobApplication::findOrFail($request->job_application_id);
+        
+        $interview = Interview::create([
             'job_application_id' => $request->job_application_id,
             'interview_date' => $request->interview_date,
-            'applicant_id' => $request->applicant_id,  // save applicant id here
-
+            'applicant_id' => $request->applicant_id,
         ]);
     
-        return redirect()->back()->with('success', 'Interview scheduled successfully.');
+        $user = $application->user;
+        if ($user && $user->email) {
+            \Mail::to($user->email)->send(new \App\Mail\ShortlistedInterviewNotification($application, $interview));
+        }
+    
+        return redirect()->back()->with('success', 'Interview scheduled and applicant notified.');
     }
     
     public function submitReview(Request $request)

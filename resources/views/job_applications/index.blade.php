@@ -6,6 +6,7 @@
 
 @section('content')
 <div class="container-fluid">
+
     <div class="page-inner">
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -14,6 +15,8 @@
                 <i class="bi bi-download"></i> Export All
             </button>
         </div>
+        @include('partials.alerts')
+
 
         <!-- Overall Statistics -->
         @if(auth()->user()->isHrAdmin() || auth()->user()->isManager())
@@ -52,12 +55,7 @@
                                 <h4 class="card-title">{{ $applications->where('status', 'rejected')->count() }}</h4>
                             </div>
                         </div>
-                        <div class="col-md-2">
-                            <div class="numbers">
-                                <p class="card-category">Pending</p>
-                                <h4 class="card-title">{{ $applications->whereIn('status', ['submitted', 'shortlisted'])->count() }}</h4>
-                            </div>
-                        </div>
+                       
                     </div>
                 </div>
             </div>
@@ -101,7 +99,6 @@
                     @php
                         $group = $applications->where('job_requisition_id', $req->id);
                         $shortlistedCount = $group->where('status','shortlisted')->count();
-                        $pendingCount = $group->whereIn('status', ['submitted', 'shortlisted'])->count();
                         $hiredCount = $group->where('status', 'hired')->count();
                         $rejectedCount = $group->where('status', 'rejected')->count();
                     @endphp
@@ -121,9 +118,7 @@
                                         @if($shortlistedCount > 0)
                                             <span class="badge badge-success">{{ $shortlistedCount }} Shortlisted</span>
                                         @endif
-                                        @if($pendingCount > 0)
-                                            <span class="badge badge-warning">{{ $pendingCount }} Pending</span>
-                                        @endif
+                                      
                                         @if($hiredCount > 0)
                                             <span class="badge badge-info">{{ $hiredCount }} Hired</span>
                                         @endif
@@ -227,7 +222,7 @@
                                                 </thead>
                                                 <tbody>
                                                     @foreach($group as $app)
-                                                        <tr data-job-id="{{ $req->id }}" data-status="{{ strtolower($app->status) }}" data-score="{{ $app->score ?? 0 }}">
+                                                        <tr data-job-id="{{ $req->id }}" data-status="{{ strtolower($app->status) }}" data-score="{{ $app->score->total_score ?? 0 }}">
                                                             <td>
                                                                 <input type="checkbox" class="form-check-input row-select" value="{{ $app->id }}" data-job-id="{{ $req->id }}">
                                                             </td>
@@ -250,15 +245,16 @@
                                                             </td>
                                                             @if(auth()->user()->isHrAdmin())
                                                             <td>
-                                                                @if($app->score !== null)
-                                                                    <span class="fw-bold">{{ $app->score }}/100</span>
-                                                                    @if($app->score >= 70)
+                                                                @if($app->score && $app->score->total_score !== null)
+                                                                    <span class="fw-bold">{{ number_format($app->score->total_score, 2) }}/100</span>
+                                                                    @if($app->score->total_score >= 70)
                                                                         <span class="badge badge-success ms-1">Auto-Shortlisted</span>
                                                                     @endif
                                                                 @else
                                                                     <span class="text-muted">Not scored</span>
                                                                 @endif
                                                             </td>
+                                                            
                                                             @endif
                                                             <td>{{ $app->created_at->format('M j, Y') }}</td>
                                                             @if(auth()->user()->isHrAdmin())

@@ -4,18 +4,104 @@
 <div class="container">
     <div class="page-inner">
         <div class="page-header">
-            <h4 class="page-title">
-                <i class="bi bi-calendar-check me-2"></i>Interview Management
-            </h4>
-            <p class="text-muted">Manage and track all scheduled interviews</p>
+            <h3 class="fw-bold mb-3">
+                <i class="fas fa-calendar-check me-2"></i>Interview Management
+            </h3>
+            <ul class="breadcrumbs mb-3">
+                <li class="nav-home">
+                    <a href="#">
+                        <i class="icon-home"></i>
+                    </a>
+                </li>
+                <li class="separator">
+                    <i class="icon-arrow-right"></i>
+                </li>
+                <li class="nav-item">
+                    <a href="#">HR Management</a>
+                </li>
+                <li class="separator">
+                    <i class="icon-arrow-right"></i>
+                </li>
+                <li class="nav-item">
+                    <a href="#">Interviews</a>
+                </li>
+            </ul>
         </div>
 
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <div class="card card-stats">
+        <div class="row">
+            <div class="col-sm-6 col-md-3">
+                <div class="card card-stats card-round">
                     <div class="card-body">
-                        <h2 class="card-title">{{ $interviews->count() }}</h2>
-                        <p class="card-category">Total Interviews</p>
+                        <div class="row align-items-center">
+                            <div class="col-icon">
+                                <div class="icon-big text-center icon-primary bubble-shadow-small">
+                                    <i class="fas fa-calendar-check"></i>
+                                </div>
+                            </div>
+                            <div class="col col-stats ms-3 ms-sm-0">
+                                <div class="numbers">
+                                    <p class="card-category">Total Interviews</p>
+                                    <h4 class="card-title">{{ $interviews->count() }}</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <div class="card card-stats card-round">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-icon">
+                                <div class="icon-big text-center icon-success bubble-shadow-small">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                            </div>
+                            <div class="col col-stats ms-3 ms-sm-0">
+                                <div class="numbers">
+                                    <p class="card-category">Upcoming</p>
+                                    <h4 class="card-title">{{ $interviews->filter(function($interview) { return \Carbon\Carbon::parse($interview->interview_date)->isFuture(); })->count() }}</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <div class="card card-stats card-round">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-icon">
+                                <div class="icon-big text-center icon-warning bubble-shadow-small">
+                                    <i class="fas fa-calendar-day"></i>
+                                </div>
+                            </div>
+                            <div class="col col-stats ms-3 ms-sm-0">
+                                <div class="numbers">
+                                    <p class="card-category">Today</p>
+                                    <h4 class="card-title">{{ $interviews->filter(function($interview) { return \Carbon\Carbon::parse($interview->interview_date)->isToday(); })->count() }}</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <div class="card card-stats card-round">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-icon">
+                                <div class="icon-big text-center icon-secondary bubble-shadow-small">
+                                    <i class="fas fa-history"></i>
+                                </div>
+                            </div>
+                            <div class="col col-stats ms-3 ms-sm-0">
+                                <div class="numbers">
+                                    <p class="card-category">Completed</p>
+                                    <h4 class="card-title">{{ $interviews->filter(function($interview) { return \Carbon\Carbon::parse($interview->interview_date)->isPast(); })->count() }}</h4>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -23,27 +109,43 @@
 
         @if($interviews->isEmpty())
             <div class="card">
-                <div class="card-body text-center text-muted">
-                    <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
-                    <h5 class="mt-3">No Interviews Scheduled</h5>
-                    <p>There are currently no interviews in the system.</p>
+                <div class="card-body text-center py-5">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i class="fas fa-calendar-times" style="font-size: 4rem; color: #dee2e6;"></i>
+                        </div>
+                        <div class="empty-state-title mt-3">
+                            <h5 class="text-muted">No Interviews Scheduled</h5>
+                        </div>
+                        <div class="empty-state-description">
+                            <p class="text-muted">There are currently no interviews in the system.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         @else
-            <div class="card mb-3">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Interview List</div>
+                </div>
                 <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-md-6 mb-3 mb-md-0">
-                            <label class="form-label fw-bold mb-2">Filter by Date:</label>
-                            <div class="btn-group" role="group" aria-label="Date filter">
-                                <button type="button" class="btn btn-outline-primary active filter-btn" data-filter="all">All Dates</button>
-                                <button type="button" class="btn btn-outline-success filter-btn" data-filter="upcoming">Upcoming</button>
-                                <button type="button" class="btn btn-outline-secondary filter-btn" data-filter="past">Past</button>
+                    <div class="row mb-4">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Filter by Date</label>
+                            <div class="btn-group d-flex" role="group" aria-label="Date filter">
+                                <input type="radio" class="btn-check" name="dateFilter" id="filterAll" value="all" checked>
+                                <label class="btn btn-outline-primary" for="filterAll">All Dates</label>
+                                
+                                <input type="radio" class="btn-check" name="dateFilter" id="filterUpcoming" value="upcoming">
+                                <label class="btn btn-outline-primary" for="filterUpcoming">Upcoming</label>
+                                
+                                <input type="radio" class="btn-check" name="dateFilter" id="filterPast" value="past">
+                                <label class="btn btn-outline-primary" for="filterPast">Past</label>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <label for="jobTitleFilter" class="form-label fw-bold mb-2">Filter by Job Title:</label>
-                            <select id="jobTitleFilter" class="form-select">
+                        <div class="col-md-6 mb-3">
+                            <label for="jobTitleFilter" class="form-label fw-bold">Filter by Job Title</label>
+                            <select id="jobTitleFilter" class="form-select form-control">
                                 <option value="">All Job Titles</option>
                                 @php
                                     $jobTitles = $interviews->pluck('jobApplication.jobRequisition.title')->unique()->filter()->sort()->values();
@@ -54,62 +156,69 @@
                             </select>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <div class="card">
-                <div class="card-body p-0">
-                    <table id="interviewsTable" class="table table-hover table-striped mb-0">
-                        <thead class="thead-light">
-                            <tr>
-                                <th><i class="bi bi-person me-2"></i>Applicant</th>
-                                <th><i class="bi bi-briefcase me-2"></i>Job Title</th>
-                                <th><i class="bi bi-calendar-event me-2"></i>Interview Date & Time</th>
-                                <th><i class="bi bi-info-circle me-2"></i>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($interviews as $interview)
-                                @php
-                                    $interviewDate = \Carbon\Carbon::parse($interview->interview_date);
-                                    $isUpcoming = $interviewDate->isFuture();
-                                    $applicantName = $interview->jobApplication->user->name ?? 'N/A';
-                                    $jobTitle = $interview->jobApplication->jobRequisition->title ?? 'N/A';
-                                @endphp
+                    <div class="table-responsive">
+                        <table id="interviewsTable" class="display table table-striped table-hover">
+                            <thead>
                                 <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center gap-3">
-                                            <div class="avatar avatar-sm rounded-circle bg-primary text-white d-flex justify-content-center align-items-center">
-                                                {{ strtoupper(substr($applicantName, 0, 1)) }}
-                                            </div>
-                                            <div>
-                                                <div class="fw-semibold">{{ $applicantName }}</div>
-                                                @if(isset($interview->jobApplication->user->email))
-                                                    <small class="text-muted">{{ $interview->jobApplication->user->email }}</small>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-primary">{{ $jobTitle }}</span>
-                                    </td>
-                                    <td data-date="{{ $interviewDate->toDateTimeString() }}">
-                                        <div>
-                                            <div class="fw-semibold">{{ $interviewDate->format('M d, Y') }}</div>
-                                            <small class="text-muted">
-                                                <i class="bi bi-clock me-1"></i>{{ $interviewDate->format('h:i A') }}
-                                            </small>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span class="badge {{ $isUpcoming ? 'bg-success' : 'bg-secondary' }}">
-                                            {{ $isUpcoming ? 'Upcoming' : 'Past' }}
-                                        </span>
-                                    </td>
+                                    <th><i class="fas fa-user me-2"></i>Applicant</th>
+                                    <th><i class="fas fa-briefcase me-2"></i>Job Title</th>
+                                    <th><i class="fas fa-calendar-alt me-2"></i>Interview Date & Time</th>
+                                    <th><i class="fas fa-info-circle me-2"></i>Status</th>
                                 </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @foreach($interviews as $interview)
+                                    @php
+                                        $interviewDate = \Carbon\Carbon::parse($interview->interview_date);
+                                        $isUpcoming = $interviewDate->isFuture();
+                                        $isToday = $interviewDate->isToday();
+                                        $applicantName = $interview->jobApplication->user->name ?? 'N/A';
+                                        $jobTitle = $interview->jobApplication->jobRequisition->title ?? 'N/A';
+                                        $applicantEmail = $interview->jobApplication->user->email ?? '';
+                                    @endphp
+                                    <tr data-date="{{ $interviewDate->toDateTimeString() }}" data-job-title="{{ $jobTitle }}">
+                                        <td>
+                                          
+                                                <div class="user-info">
+                                                    <div class="fw-bold">{{ $applicantName }}</div>
+                                                    @if($applicantEmail)
+                                                        <small class="text-muted">{{ $applicantEmail }}</small>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-primary">{{ $jobTitle }}</span>
+                                        </td>
+                                        <td>
+                                            <div class="interview-datetime">
+                                                <div class="fw-bold">{{ $interviewDate->format('M d, Y') }}</div>
+                                                <small class="text-muted">
+                                                    <i class="fas fa-clock me-1"></i>{{ $interviewDate->format('h:i A') }}
+                                                </small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if($isToday)
+                                                <span class="badge badge-warning">
+                                                    <i class="fas fa-calendar-day me-1"></i>Today
+                                                </span>
+                                            @elseif($isUpcoming)
+                                                <span class="badge badge-success">
+                                                    <i class="fas fa-clock me-1"></i>Upcoming
+                                                </span>
+                                            @else
+                                                <span class="badge badge-secondary">
+                                                    <i class="fas fa-check me-1"></i>Completed
+                                                </span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         @endif
@@ -118,77 +227,112 @@
 @endsection
 
 @section('scripts')
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <!-- DataTables JS -->
-    <script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
-    <!-- Bootstrap Bundle JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Check if DataTable is already initialized and destroy it
+    if ($.fn.DataTable.isDataTable('#interviewsTable')) {
+        $('#interviewsTable').DataTable().destroy();
+    }
 
-    <script>
-        $(function() {
-            var table = $('#interviewsTable').DataTable({
-                responsive: true,
-                pageLength: 25,
-                order: [[2, 'desc']],
-                columnDefs: [{ orderable: false, targets: [3] }],
-                language: {
-                    search: "Search interviews:",
-                    lengthMenu: "Show _MENU_ interviews per page",
-                    info: "Showing _START_ to _END_ of _TOTAL_ interviews",
-                    emptyTable: "No interviews found",
-                    zeroRecords: "No matching interviews found"
-                }
-            });
+    // Initialize DataTable
+    var table = $('#interviewsTable').DataTable({
+        responsive: true,
+        pageLength: 25,
+        order: [[2, 'desc']],
+        columnDefs: [
+            { orderable: false, targets: [3] }
+        ],
+        language: {
+            search: "Search interviews:",
+            lengthMenu: "Show _MENU_ interviews per page",
+            info: "Showing _START_ to _END_ of _TOTAL_ interviews",
+            emptyTable: "No interviews found",
+            zeroRecords: "No matching interviews found"
+        },
+        dom: 'Bfrtip',
+        buttons: [
+            {
+                extend: 'copy',
+                className: 'btn btn-primary btn-sm'
+            },
+            {
+                extend: 'csv',
+                className: 'btn btn-primary btn-sm'
+            },
+            {
+                extend: 'excel',
+                className: 'btn btn-primary btn-sm'
+            },
+            {
+                extend: 'pdf',
+                className: 'btn btn-primary btn-sm'
+            },
+            {
+                extend: 'print',
+                className: 'btn btn-primary btn-sm'
+            }
+        ]
+    });
 
-            var dateFilter = 'all';
+    var dateFilter = 'all';
 
-            function applyFilters() {
-                var now = new Date();
-                var selectedJobTitle = $('#jobTitleFilter').val();
+    // Custom filtering function
+    function applyFilters() {
+        var now = new Date();
+        var selectedJobTitle = $('#jobTitleFilter').val();
 
-                $.fn.dataTable.ext.search = [];
+        // Clear existing search functions
+        $.fn.dataTable.ext.search = [];
 
-                $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-                    var row = $('#interviewsTable tbody tr').eq(dataIndex);
-                    var interviewDateStr = row.find('td').eq(2).data('date');
+        // Add custom search function
+        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+            var row = table.row(dataIndex).node();
+            var $row = $(row);
+            
+            var interviewDateStr = $row.data('date');
+            var jobTitle = $row.data('job-title');
 
-                    if (!interviewDateStr) return false;
+            if (!interviewDateStr) return false;
 
-                    var interviewDate = new Date(interviewDateStr);
-                    var jobTitleHtml = data[1];
-                    var jobTitleText = $('<div>').html(jobTitleHtml).text().trim();
+            var interviewDate = new Date(interviewDateStr);
 
-                    var datePass = true;
-                    if (dateFilter === 'upcoming') {
-                        datePass = interviewDate >= now;
-                    } else if (dateFilter === 'past') {
-                        datePass = interviewDate < now;
-                    }
-
-                    var jobPass = true;
-                    if (selectedJobTitle && selectedJobTitle.trim() !== '') {
-                        jobPass = jobTitleText === selectedJobTitle.trim();
-                    }
-
-                    return datePass && jobPass;
-                });
-
-                table.draw();
+            // Date filter logic
+            var datePass = true;
+            if (dateFilter === 'upcoming') {
+                datePass = interviewDate >= now;
+            } else if (dateFilter === 'past') {
+                datePass = interviewDate < now;
             }
 
-            $('.filter-btn').on('click', function() {
-                $('.filter-btn').removeClass('active');
-                $(this).addClass('active');
-                dateFilter = $(this).data('filter');
-                applyFilters();
-            });
+            // Job title filter logic
+            var jobPass = true;
+            if (selectedJobTitle && selectedJobTitle.trim() !== '') {
+                jobPass = jobTitle === selectedJobTitle.trim();
+            }
 
-            $('#jobTitleFilter').on('change', function() {
-                applyFilters();
-            });
-
-            applyFilters();
+            return datePass && jobPass;
         });
-    </script>
+
+        table.draw();
+    }
+
+    // Date filter event handlers
+    $('input[name="dateFilter"]').off('change').on('change', function() {
+        dateFilter = $(this).val();
+        applyFilters();
+    });
+
+    // Job title filter event handler
+    $('#jobTitleFilter').off('change').on('change', function() {
+        applyFilters();
+    });
+
+    // Apply initial filters
+    applyFilters();
+
+    // Add some custom styling for better UX
+    $('.dataTables_wrapper .dataTables_filter input').addClass('form-control');
+    $('.dataTables_wrapper .dataTables_length select').addClass('form-select');
+});
+</script>
 @endsection

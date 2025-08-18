@@ -177,7 +177,7 @@
                             </div>
                             
                             <div class="job-action">
-                                <a href="{{ route('job-requisitions.show', $job) }}" class="job-apply-btn">
+                                <a href="{{ route('job-requisitions.show', $job->uuid) }}" class="job-apply-btn">
                                     <span>Apply Now</span>
                                     <i class="fas fa-arrow-right"></i>
                                 </a>

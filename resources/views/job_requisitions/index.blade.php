@@ -34,17 +34,46 @@
                     </a>
                 @endif
             </div>
+
+            @include('partials.alerts')
+
             <div>
-                <span class="badge bg-info text-uppercase me-2">Active Listings</span>
+                <span class="badge bg-info text-uppercase me-2">Available Jobs</span>
                 <span class="badge bg-secondary text-uppercase">{{ $requisitions->where('approval_status', 'approved')->count() }} Approved</span>
+                @if(auth()->user()->isApplicant())
+                    @php
+                        $userApplications = auth()->user()->applications()->pluck('job_requisition_id')->toArray();
+                        $availableCount = $requisitions->where('approval_status', 'approved')
+                                                    ->where('job_status', 'active')
+                                                    ->whereNotIn('id', $userApplications)
+                                                    ->count();
+                    @endphp
+                    <span class="badge bg-success text-uppercase">{{ $availableCount }} Available to Apply</span>
+                @endif
             </div>
         </div>
 
-        @if($requisitions->isEmpty())
+        @php
+            // For applicants, filter out jobs they've already applied for
+            if (auth()->user()->isApplicant()) {
+                $userApplications = auth()->user()->applications()->pluck('job_requisition_id')->toArray();
+                $filteredRequisitions = $requisitions->whereNotIn('id', $userApplications);
+            } else {
+                $filteredRequisitions = $requisitions;
+            }
+        @endphp
+
+        @if($filteredRequisitions->isEmpty())
             <div class="text-center p-5 text-muted">
                 <i class="bi bi-inbox fs-1 opacity-50 mb-3"></i>
-                <h4>No Job Requisitions Found</h4>
-                <p>There are no job requisitions to display.</p>
+                @if(auth()->user()->isApplicant())
+                    <h4>No Available Job Requisitions</h4>
+                    <p>You have either applied to all available positions or there are no open positions at this time.</p>
+                    <small class="text-muted">Check back later for new opportunities!</small>
+                @else
+                    <h4>No Job Requisitions Found</h4>
+                    <p>There are no job requisitions to display.</p>
+                @endif
             </div>
         @else
             {{-- Filters --}}
@@ -57,14 +86,16 @@
                         <option value="Draft">Draft</option>
                     </select>
                 </div>
-                <div class="col-md-4">
-                    <select id="approvalFilter" class="form-select">
-                        <option value="">Filter by Approval</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Approved">Approved</option>
-                        <option value="Rejected">Rejected</option>
-                    </select>
-                </div>
+                @if(!auth()->user()->isApplicant())
+                    <div class="col-md-4">
+                        <select id="approvalFilter" class="form-select">
+                            <option value="">Filter by Approval</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                    </div>
+                @endif
                 <div class="col-md-4 text-end">
                     <button type="button" class="btn btn-outline-secondary" onclick="resetFilters()">Reset Filters</button>
                 </div>
@@ -78,13 +109,27 @@
                             <th>Reference</th>
                             <th>Title</th>
                             <th>Status</th>
-                            <th>Approval</th>
+                            @if(!auth()->user()->isApplicant())
+                                <th>Approval</th>
+                            @endif
+                            <th>Filled</th>
+                            @unless (auth()->user()->isApplicant())
+
+                            <th>Applications Count</th>
+                            @endunless
                             <th>Created</th>
-                            <th class="text-center">Actions</th>
+                            @if(!auth()->user()->isApplicant())
+                                <th class="text-center">Actions</th>
+                            @else
+                                <th class="text-center">Apply</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($requisitions as $req)
+                        @foreach ($filteredRequisitions as $req)
+                            @php
+                                $isFilled = $req->applications()->where('status', 'hired')->exists();
+                            @endphp
                             <tr>
                                 <td>{{ $req->reference_number }}</td>
                                 <td>
@@ -107,61 +152,99 @@
                                             <span class="badge bg-light text-dark">{{ ucfirst($req->job_status ?? 'N/A') }}</span>
                                     @endswitch
                                 </td>
+
+                                @if(!auth()->user()->isApplicant())
+                                    <td>
+                                        @switch(strtolower($req->approval_status))
+                                            @case('pending')
+                                                <span class="badge bg-warning text-dark">Pending</span>
+                                                @break
+                                            @case('approved')
+                                                <span class="badge bg-success">Approved</span>
+                                                @break
+                                            @case('rejected')
+                                                <span class="badge bg-danger">Rejected</span>
+                                                @break
+                                            @default
+                                                <span class="badge bg-light text-dark">{{ ucfirst($req->approval_status ?? 'Unknown') }}</span>
+                                        @endswitch
+                                    </td>
+                                @endif
+
                                 <td>
-                                    @switch(strtolower($req->approval_status))
-                                        @case('pending')
-                                            <span class="badge bg-warning text-dark">Pending</span>
-                                            @break
-                                        @case('approved')
-                                            <span class="badge bg-success">Approved</span>
-                                            @break
-                                        @case('rejected')
-                                            <span class="badge bg-danger">Rejected</span>
-                                            @break
-                                        @default
-                                            <span class="badge bg-light text-dark">{{ ucfirst($req->approval_status ?? 'Unknown') }}</span>
-                                    @endswitch
+                                    @if($isFilled)
+                                        <span class="badge bg-success">Yes</span>
+                                    @else
+                                        <span class="badge bg-secondary">No</span>
+                                    @endif
                                 </td>
+                                @unless (auth()->user()->isApplicant())
+                                    <td>{{ $req->applications->count() }}</td>  
+                                    
+                                @endunless
                                 <td>{{ $req->created_at->format('Y-m-d') }}</td>
+
                                 <td class="text-center">
-                                    <div class="btn-group" role="group">
-                                        <a href="{{ route('job-requisitions.show', $req->uuid) }}" class="btn btn-sm btn-outline-primary" title="View">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
+                                    @if(!auth()->user()->isApplicant())
+                                        <div class="btn-group" role="group">
+                                            <a href="{{ route('job-requisitions.show', $req->uuid) }}" class="btn btn-sm btn-outline-primary" title="View">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
 
-                                        @if(auth()->user()->isHrAdmin() && $req->approval_status === 'pending')
-                                            <form method="POST" action="{{ route('job-requisitions.approve', $req) }}" class="d-inline">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-outline-success" title="Approve">
-                                                    <i class="bi bi-check-lg"></i>
-                                                </button>
-                                            </form>
-                                            <form method="POST" action="{{ route('job-requisitions.reject', $req) }}" class="d-inline">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Reject">
-                                                    <i class="bi bi-x-lg"></i>
-                                                </button>
-                                            </form>
-                                        @endif
+                                            @if(auth()->user()->isHrAdmin() && $req->approval_status === 'pending')
+                                                <form method="POST" action="{{ route('job-requisitions.approve', $req) }}" class="d-inline">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Approve">
+                                                        <i class="bi bi-check-lg"></i>
+                                                    </button>
+                                                </form>
+                                                <form method="POST" action="{{ route('job-requisitions.reject', $req) }}" class="d-inline">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Reject">
+                                                        <i class="bi bi-x-lg"></i>
+                                                    </button>
+                                                </form>
+                                            @endif
 
-                                        @if(auth()->user()->isHrAdmin() || auth()->user()->isManager())
                                             <a href="{{ route('job-applications.index', ['job_requisition_id' => $req->id]) }}" class="btn btn-sm btn-outline-secondary" title="View Applications">
                                                 <i class="bi bi-people-fill"></i>
                                             </a>
-                                        @endif
+                                        </div>
 
-                                        @if(auth()->user()->isApplicant() && $req->approval_status === 'approved' && $req->job_status === 'active')
-                                            <a href="{{ route('job-applications.create', ['job_requisition_id' => $req->id]) }}" class="btn btn-sm btn-outline-primary" title="Apply">
-                                                <i class="bi bi-send"></i>
+                                    @else
+                                        {{-- Applicants only see apply button if approved, active, and not filled --}}
+                                        @if($req->approval_status === 'approved' && $req->job_status === 'active' && !$isFilled)
+                                            <a href="{{ route('job-applications.create', ['job_requisition_id' => $req->id]) }}" class="btn btn-sm btn-primary" title="Apply Now">
+                                                <i class="bi bi-send"></i> Apply
                                             </a>
+                                        @else
+                                            <span class="text-muted small">
+                                                @if($isFilled)
+                                                    Position Filled
+                                                @elseif($req->approval_status !== 'approved')
+                                                    Pending Approval
+                                                @elseif($req->job_status !== 'active')
+                                                    Position Closed
+                                                @else
+                                                    N/A
+                                                @endif
+                                            </span>
                                         @endif
-                                    </div>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
             </div>
+
+            @if(auth()->user()->isApplicant() && $requisitions->count() > $filteredRequisitions->count())
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle"></i> 
+                    <strong>Note:</strong> {{ $requisitions->count() - $filteredRequisitions->count() }} job(s) are hidden because you have already applied for them.
+                    <a href="{{ route('job-applications.index') }}" class="alert-link ms-2">View your applications</a>
+                </div>
+            @endif
         @endif
 
     </div>
@@ -181,34 +264,44 @@
 
     <script>
         $(document).ready(function () {
-            let table = $('#requisitionsTable').DataTable({
-                responsive: true,
-                pageLength: 25,
-                order: [[4, 'desc']],
-                dom: 'Bfrtip',
-                buttons: [
-                    { extend: 'csvHtml5', className: 'btn btn-outline-secondary btn-sm me-1', text: 'Export CSV' },
-                    { extend: 'excelHtml5', className: 'btn btn-outline-success btn-sm me-1', text: 'Export Excel' },
-                    { extend: 'pdfHtml5', className: 'btn btn-outline-danger btn-sm me-1', text: 'Export PDF' },
-                    { extend: 'print', className: 'btn btn-outline-dark btn-sm', text: 'Print' }
-                ],
-                language: {
-                    search: "Search:",
-                    lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ requisitions",
-                    emptyTable: "No job requisitions found",
-                    zeroRecords: "No matching requisitions found"
-                }
-            });
+            if (!$.fn.DataTable.isDataTable('#requisitionsTable')) {
+                let buttons = [];
 
-            // Filter logic
-            $('#statusFilter').on('change', function () {
-                table.column(2).search($(this).val()).draw();
-            });
+                @if(!auth()->user()->isApplicant())
+                    buttons = [
+                        { extend: 'csvHtml5', className: 'btn btn-outline-secondary btn-sm me-1', text: 'Export CSV' },
+                        { extend: 'excelHtml5', className: 'btn btn-outline-success btn-sm me-1', text: 'Export Excel' },
+                        { extend: 'pdfHtml5', className: 'btn btn-outline-danger btn-sm me-1', text: 'Export PDF' },
+                        { extend: 'print', className: 'btn btn-outline-dark btn-sm', text: 'Print' }
+                    ];
+                @endif
 
-            $('#approvalFilter').on('change', function () {
-                table.column(3).search($(this).val()).draw();
-            });
+                let table = $('#requisitionsTable').DataTable({
+                    responsive: true,
+                    pageLength: 25,
+                    order: [[{{ auth()->user()->isApplicant() ? 4 : 5 }}, 'desc']],
+                    dom: 'Bfrtip',
+                    buttons: buttons,
+                    language: {
+                        search: "Search:",
+                        lengthMenu: "Show _MENU_ entries",
+                        info: "Showing _START_ to _END_ of _TOTAL_ requisitions",
+                        emptyTable: "No job requisitions found",
+                        zeroRecords: "No matching requisitions found"
+                    }
+                });
+
+                // Filters
+                $('#statusFilter').on('change', function () {
+                    table.column(2).search($(this).val()).draw();
+                });
+
+                @if(!auth()->user()->isApplicant())
+                    $('#approvalFilter').on('change', function () {
+                        table.column(3).search($(this).val()).draw();
+                    });
+                @endif
+            }
         });
 
         function resetFilters() {

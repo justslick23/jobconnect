@@ -289,9 +289,13 @@ class ProfileController extends Controller
                 'degree' => $educationData['degree'],
                 'education_level' => $educationData['education_level'],
                 'field_of_study' => $educationData['field_of_study'] ?? null,
+                'status' => $educationData['status'] ?? 'Completed', // Default to Completed
+
                 'institution' => $educationData['institution'],
                 'start_date' => $educationData['start_date'] ?? null,
                 'end_date' => $educationData['end_date'] ?? null,
+                'expected_graduation' => $educationData['expected_graduation'] ?? null,
+
             ]);
         }
     }
