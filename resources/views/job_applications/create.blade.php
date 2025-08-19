@@ -1,6 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
+@section('title', 'Apply for ' . $job->title)
+
 <div class="page-inner">
     <div class="page-header">
         <h3 class="fw-bold mb-3">Job Application</h3>

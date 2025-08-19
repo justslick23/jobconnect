@@ -22,18 +22,7 @@
                         @csrf
 
                         <!-- Demo Role -->
-                        <div class="field-group">
-                            <div class="field-label">
-                                <i class="fas fa-users"></i>
-                                <span>Demo Role</span>
-                            </div>
-                            <select id="demo-role" class="field-input">
-                                <option value="">Choose role</option>
-                                <option value="admin">🔥 Admin</option>
-                                <option value="manager">⚡ Manager</option>
-                                <option value="applicant">✨ Applicant</option>
-                            </select>
-                        </div>
+                        
 
                         <!-- Email -->
                         <div class="field-group">
@@ -100,15 +89,7 @@
                             <span>or</span>
                         </div>
 
-                        <!-- Social Buttons -->
-                        <div class="social-grid">
-                            <button type="button" class="social-btn google">
-                                <i class="fab fa-google"></i>
-                            </button>
-                            <a href="{{ route('auth.linkedin') }}" class="social-btn linkedin">
-                                <i class="fab fa-linkedin"></i>
-                            </a>
-                        </div>
+                    
                     </form>
 
                     <!-- Register Link -->
@@ -447,29 +428,7 @@ function togglePassword() {
     }
 }
 
-// Demo role autofill
-document.addEventListener('DOMContentLoaded', function () {
-    const roleSelect = document.getElementById('demo-role');
-    const emailInput = document.getElementById('email');
-    const passwordInput = document.getElementById('password');
 
-    const credentials = {
-        admin: { email: 'hello@tokelofoso.online', password: 'Tokelo@23' },
-        manager: { email: 'tokelo.foso@cbs.co.ls', password: 'Tokelo@23' },
-        applicant: { email: 'tokelo.foso23@gmail.com', password: 'Tokelo@23' }
-    };
-
-    roleSelect.addEventListener('change', function () {
-        const selected = roleSelect.value;
-        if (credentials[selected]) {
-            emailInput.value = credentials[selected].email;
-            passwordInput.value = credentials[selected].password;
-        } else {
-            emailInput.value = '';
-            passwordInput.value = '';
-        }
-    });
-});
 </script>
 
 @endsection

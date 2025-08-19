@@ -78,18 +78,35 @@ class JobRequisitionController extends Controller
     
         // Attach skills via pivot
         $job->skills()->sync($request->required_skills);
+
+        $users = \App\Models\User::all()->filter(function ($user) {
+            return $user->isApplicant();
+        });
+        
+        foreach ($users as $user) {
+            \Mail::to($user->email)->queue(new \App\Mail\NewJobPosted($job));
+        }
     
         return redirect()->route('job-requisitions.index')->with('success', 'Job Requisition Created.');
     }
     /**
      * Display the specified resource.
      */
-    public function show($uuid)
+    public function show($slugUuid)
     {
+        // Match a UUID at the end of the string
+        if (preg_match('/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i', $slugUuid, $matches)) {
+            $uuid = $matches[1];
+        } else {
+            abort(404); // invalid format
+        }
+    
         $jobRequisition = JobRequisition::where('uuid', $uuid)->firstOrFail();
+    
         return view('job_requisitions.show', compact('jobRequisition'));
-
     }
+    
+    
 
     /**
      * Show the form for editing the specified resource.

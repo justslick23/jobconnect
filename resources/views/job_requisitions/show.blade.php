@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('title', $jobRequisition->title )
 
 @section('content')
 <div class="container">

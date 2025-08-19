@@ -1,6 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
+@section('title', 'Interviews')
+
 <div class="container">
     <div class="page-inner">
         <div class="page-header">

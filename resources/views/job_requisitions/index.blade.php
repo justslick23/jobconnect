@@ -14,6 +14,7 @@
         }
     </style>
 @endsection
+@section('title', 'Job Requisitions')
 
 @section('content')
 <div class="container">
@@ -186,10 +187,12 @@
                                 <td class="text-center">
                                     @if(!auth()->user()->isApplicant())
                                         <div class="btn-group" role="group">
-                                            <a href="{{ route('job-requisitions.show', $req->uuid) }}" 
-                                            class="btn btn-sm btn-outline-primary rounded" title="View">
-                                                <i class="bi bi-eye me-1"></i> View
-                                            </a>
+                                            <a href="{{ route('job-requisitions.show', $req->slug_uuid) }}" 
+                                                class="btn btn-sm btn-outline-primary rounded" title="View">
+                                                 <i class="bi bi-eye me-1"></i> View
+                                             </a>
+                                             
+                                             
 
                                           
                                             <a href="{{ route('job-applications.index', ['job_requisition_id' => $req->id]) }}" 

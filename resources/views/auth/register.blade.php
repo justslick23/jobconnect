@@ -109,14 +109,7 @@
                             </div>
                         </div>
 
-                        <!-- Terms Agreement -->
-                        <div class="auth-options mb-3">
-                            <label class="remember-check">
-                                <input type="checkbox" name="terms" id="terms" required>
-                                <span class="checkmark"></span>
-                                <span class="remember-text">I agree to the <a href="#" class="terms-link">Terms</a> and <a href="#" class="terms-link">Privacy Policy</a></span>
-                            </label>
-                        </div>
+                    
 
                         <!-- Create Account Button -->
                         <button type="submit" class="signin-btn">
@@ -129,15 +122,7 @@
                             <span>or</span>
                         </div>
 
-                        <!-- Social Buttons -->
-                        <div class="social-grid">
-                            <button type="button" class="social-btn google">
-                                <i class="fab fa-google"></i>
-                            </button>
-                            <a href="{{ route('auth.linkedin') }}" class="social-btn linkedin">
-                                <i class="fab fa-linkedin"></i>
-                            </a>
-                        </div>
+                      
                     </form>
 
                     <!-- Login Link -->
@@ -147,20 +132,7 @@
                 </div>
 
                 <!-- Features -->
-                <div class="features-grid">
-                    <div class="feature-item">
-                        <i class="fas fa-search"></i>
-                        <span>Smart Job Matching</span>
-                    </div>
-                    <div class="feature-item">
-                        <i class="fas fa-bell"></i>
-                        <span>Instant Notifications</span>
-                    </div>
-                    <div class="feature-item">
-                        <i class="fas fa-chart-line"></i>
-                        <span>Career Analytics</span>
-                    </div>
-                </div>
+             
             </div>
         </div>
     </div>

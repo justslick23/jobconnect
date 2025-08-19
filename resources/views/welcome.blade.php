@@ -60,56 +60,7 @@
         </div>
     </section>
 
-    <!-- Benefits Section -->
-    <section class="benefits">
-        <div class="container">
-            <div class="section-header">
-                <h2 class="section-title">Why Choose CBS?</h2>
-                <p class="section-subtitle">More than just a job - it's your career home</p>
-            </div>
-            
-            <div class="benefits-grid">
-                <div class="benefit-card">
-                    <div class="benefit-icon primary">
-                        <i class="fas fa-balance-scale"></i>
-                    </div>
-                    <h3>Work-Life Balance</h3>
-                    <p>Flexible schedules, remote work options, and comprehensive wellness programs that put your wellbeing first.</p>
-                    <ul class="benefit-features">
-                        <li>Flexible working hours</li>
-                        <li>Remote work opportunities</li>
-                        <li>Wellness programs</li>
-                    </ul>
-                </div>
-                
-                <div class="benefit-card">
-                    <div class="benefit-icon gold">
-                        <i class="fas fa-graduation-cap"></i>
-                    </div>
-                    <h3>Growth & Development</h3>
-                    <p>Continuous learning opportunities, professional certifications, and clear career advancement paths.</p>
-                    <ul class="benefit-features">
-                        <li>Professional training</li>
-                        <li>Certification support</li>
-                        <li>Career mentorship</li>
-                    </ul>
-                </div>
-                
-                <div class="benefit-card">
-                    <div class="benefit-icon red">
-                        <i class="fas fa-shield-alt"></i>
-                    </div>
-                    <h3>Comprehensive Benefits</h3>
-                    <p>Competitive compensation packages with full health coverage, retirement plans, and job security.</p>
-                    <ul class="benefit-features">
-                        <li>Health & dental insurance</li>
-                        <li>Retirement contributions</li>
-                        <li>Performance bonuses</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </section>
+ 
 
     <!-- Job Openings Section -->
     <section id="openings" class="openings">
@@ -177,10 +128,11 @@
                             </div>
                             
                             <div class="job-action">
-                                <a href="{{ route('job-requisitions.show', $job->uuid) }}" class="job-apply-btn">
+                                <a href="{{ route('job-requisitions.show', $job->slug_uuid) }}" class="job-apply-btn">
                                     <span>Apply Now</span>
                                     <i class="fas fa-arrow-right"></i>
                                 </a>
+                                
                             </div>
                         </div>
                     @endforeach

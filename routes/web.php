@@ -28,7 +28,8 @@ Route::middleware(['auth'])->group(function () {
 Route::get('/jobs', [JobRequisitionController::class, 'index'])->name('job-requisitions.index');
 Route::get('/jobs/create', [JobRequisitionController::class, 'create'])->name('job-requisitions.create');
 Route::post('/jobs', [JobRequisitionController::class, 'store'])->name('job-requisitions.store');
-Route::get('/jobs/{uuid}', [JobRequisitionController::class, 'show'])->name('job-requisitions.show');
+Route::get('/jobs/{slugUuid}', [JobRequisitionController::class, 'show'])
+    ->name('job-requisitions.show');
 Route::get('/jobs/{jobRequisition}/edit', [JobRequisitionController::class, 'edit'])->name('job-requisitions.edit');
 Route::put('/jobs/{jobRequisition}', [JobRequisitionController::class, 'update'])->name('job-requisitions.update');
 Route::delete('/jobs/{jobRequisition}', [JobRequisitionController::class, 'destroy'])->name('job-requisitions.destroy');
@@ -61,8 +62,7 @@ Route::delete('/jobs/{jobRequisition}', [JobRequisitionController::class, 'destr
 
     // Export applications for a specific job
     Route::get('/job-applications/export/{jobId}', [JobApplicationController::class, 'exportByJob'])
-        ->name('job-applications.export')
-        ->where('jobId', '[0-9]+');
+    ->name('job-applications.export');
     
     // Export all applications
     Route::get('/job-applications/export-all', [JobApplicationController::class, 'exportAll'])

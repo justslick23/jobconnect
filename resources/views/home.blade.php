@@ -1,6 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
+@section('title', 'Dashboard')
+
 <div class="container">
     <div class="page-inner">
 

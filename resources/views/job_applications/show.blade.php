@@ -1,6 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
+@section('title',  $application->jobRequisition->title .  ' Application Details')
+
 <div class="container">
     <div class="page-inner">
         
@@ -55,26 +57,7 @@
                             </div>
                         </div>
 
-                        <!-- Quick Stats Row -->
-                        <div class="row text-center mb-4">
-                            <div class="col-6 col-md-3">
-                                <h4 class="fw-bold text-primary">{{ $application->created_at->format('M j') }}</h4>
-                                <small class="text-muted">Applied</small>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <h4 class="fw-bold text-info">{{ $application->user->experiences->count() ?? 0 }}</h4>
-                                <small class="text-muted">Experience</small>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <h4 class="fw-bold text-success">{{ $application->user->education->count() ?? 0 }}</h4>
-                                <small class="text-muted">Education</small>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <h4 class="fw-bold text-warning">{{ $application->user->attachments->count() ?? 0 }}</h4>
-                                <small class="text-muted">Documents</small>
-                            </div>
-                        </div>
-
+                    
                         @if($application->score)
                         <div class="mb-4">
                             <h5 class="fw-bold mb-3">Score Breakdown</h5>
@@ -298,7 +281,7 @@
 
                             @elseif($status !== 'rejected' && $status !== 'hired')
                                 @if(!$hasInterview)
-                                    <button id="scheduleBtn" class="btn btn-primary btn-round w-100 mb-2">
+                                    <button class="btn btn-primary btn-round w-100 mb-2" data-bs-toggle="modal" data-bs-target="#scheduleInterviewModal">
                                         <i class="fas fa-calendar-plus me-2"></i>Schedule Interview
                                     </button>
                                 @endif
@@ -307,9 +290,13 @@
                                     <button class="btn btn-info btn-round w-100 mb-2" onclick="toggleSection('scoringSection')">
                                         <i class="fas fa-star me-2"></i>Score Interview
                                     </button>
-                                    <button class="btn btn-warning btn-round w-100 mb-2" onclick="toggleSection('offerLetterForm')">
-                                        <i class="fas fa-envelope-open-text me-2"></i>Send Offer Letter
-                                    </button>
+                                    <form action="{{ route('applications.update-status', $application->id) }}" method="POST" class="mb-2">
+                                        @csrf @method('PATCH')
+                                        <input type="hidden" name="status" value="offer sent">
+                                        <button class="btn btn-warning btn-round w-100" type="submit">
+                                            <i class="fas fa-envelope-open-text me-2"></i>Send Offer
+                                        </button>
+                                    </form>
                                 @endif
 
                                 <form action="{{ route('applications.update-status', $application->id) }}" method="POST" class="mb-2">
@@ -442,29 +429,43 @@
             </div>
         </div>
 
-        <!-- Hidden Forms -->
-        <!-- Schedule Interview Form -->
-        <div id="scheduleForm" class="card card-round" style="display: none;">
-            <div class="card-body">
-                <div class="card-title fw-mediumbold">Schedule Interview</div>
-                <form method="POST" action="{{ route('interviews.store') }}">
-                    @csrf
-                    <input type="hidden" name="job_application_id" value="{{ $application->id }}">
-                    <input type="hidden" name="applicant_id" value="{{ $application->user_id }}">
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Interview Date & Time</label>
-                        <input type="datetime-local" name="interview_date" class="form-control" 
-                               min="{{ now()->format('Y-m-d\TH:i') }}" required>
+        <!-- Schedule Interview Modal -->
+        <div class="modal fade" id="scheduleInterviewModal" tabindex="-1" aria-labelledby="scheduleInterviewModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="scheduleInterviewModalLabel">
+                            <i class="fas fa-calendar-plus me-2"></i>Schedule Interview
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary btn-round">
-                            <i class="fas fa-calendar-check me-2"></i>Schedule Interview
-                        </button>
-                        <button type="button" id="cancelBtn" class="btn btn-light btn-border btn-round">Cancel</button>
-                    </div>
-                </form>
+                    <form method="POST" action="{{ route('interviews.store') }}">
+                        @csrf
+                        <div class="modal-body">
+                            <input type="hidden" name="job_application_id" value="{{ $application->id }}">
+                            <input type="hidden" name="applicant_id" value="{{ $application->user_id }}">
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Interview Date & Time</label>
+                                <input type="datetime-local" name="interview_date" class="form-control" 
+                                       min="{{ now()->format('Y-m-d\TH:i') }}" required>
+                            </div>
+
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Applicant:</strong> {{ $application->user->name }}<br>
+                                <strong>Position:</strong> {{ $application->jobRequisition->title }}<br>
+                                <strong>Email:</strong> {{ $application->user->email }}
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-calendar-check me-2"></i>Schedule Interview
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
 
@@ -511,27 +512,6 @@
                 </form>
             </div>
         </div>
-
-        <!-- Offer Letter Form -->
-        <div id="offerLetterForm" class="card card-round" style="display: none;">
-            <div class="card-body">
-                <div class="card-title fw-mediumbold">Send Offer Letter</div>
-                <form method="POST" action="{{ route('applications.offerLetter.send', $application->id) }}" enctype="multipart/form-data">
-                    @csrf
-                    <div class="mb-3">
-                        <label class="form-label">Offer Letter (PDF)</label>
-                        <input type="file" name="offer_letter" accept="application/pdf" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Message to Applicant</label>
-                        <textarea name="message" class="form-control" rows="3" placeholder="Add a personal message...">{{ old('message') }}</textarea>
-                    </div>
-                    <button type="submit" class="btn btn-warning btn-round w-100">
-                        <i class="fas fa-paper-plane me-2"></i>Send Offer Letter
-                    </button>
-                </form>
-            </div>
-        </div>
         @endif
 
     </div>
@@ -545,29 +525,6 @@ function toggleSection(id) {
         element.style.display = element.style.display === 'none' ? 'block' : 'none';
     }
 }
-
-// Schedule form handlers
-document.addEventListener('DOMContentLoaded', function() {
-    const scheduleBtn = document.getElementById('scheduleBtn');
-    const scheduleForm = document.getElementById('scheduleForm');
-    const cancelBtn = document.getElementById('cancelBtn');
-
-    if (scheduleBtn) {
-        scheduleBtn.addEventListener('click', () => {
-            scheduleForm.style.display = 'block';
-            scheduleBtn.style.display = 'none';
-        });
-    }
-
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
-            scheduleForm.style.display = 'none';
-            if (scheduleBtn) {
-                scheduleBtn.style.display = 'block';
-            }
-        });
-    }
-});
 
 // Download resume
 function downloadResume() {
@@ -609,6 +566,22 @@ function downloadResume() {
 
 .score-display {
     text-align: center;
+}
+
+.modal-content {
+    border: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.alert-info {
+    background-color: #e3f2fd;
+    border-color: #bbdefb;
+    color: #0d47a1;
 }
 </style>
 @endsection

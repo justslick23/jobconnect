@@ -4,6 +4,7 @@
     <!-- DataTables CSS -->
     <link href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css" rel="stylesheet" />
 @endsection
+@section('title', 'Departments')
 
 @section('content')
 <div class="container">

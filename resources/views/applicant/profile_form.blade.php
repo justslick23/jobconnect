@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('title', 'Applicant Profile')
 
 @section('content')
 <div class="container">
@@ -68,64 +69,64 @@
 
             <!-- Dynamic Sections -->
             @php
-                $sections = [
-                   'education' => [
-                            'title' => 'Education', 
-                            'required' => true,
-                            'description' => 'Include educational qualifications that are relevant to the position you\'re applying for. Focus on degrees, courses, or certifications that demonstrate the knowledge and skills required for the role.',
-                            'fields' => [
-                                'degree' => ['type' => 'text', 'label' => 'Degree', 'required' => true, 'placeholder' => 'e.g., Bachelor of Science'],
-                                'education_level' => ['type' => 'select', 'label' => 'Education Level', 'required' => true, 'options' => ['High School', 'Certificate', 'Diploma', 'Associate Degree', 'Bachelor\'s Degree', 'Postgraduate Diploma', 'Master\'s Degree', 'Doctorate (PhD)', 'Other']],
-                                'field_of_study' => ['type' => 'text', 'label' => 'Field of Study', 'required' => true, 'placeholder' => 'e.g., Computer Science'],
-                                'institution' => ['type' => 'text', 'label' => 'Institution', 'required' => true, 'placeholder' => 'e.g., National University of Lesotho'],
-                                'status' => ['type' => 'select', 'label' => 'Status', 'required' => true, 'options' => ['Completed', 'In Progress', 'Paused/Deferred']],
-                                'start_date' => ['type' => 'date', 'label' => 'Start Date'],
-                                'end_date' => ['type' => 'date', 'label' => 'End Date', 'note' => 'Leave blank if currently studying or not yet completed'],
-                                'expected_graduation' => ['type' => 'date', 'label' => 'Expected Graduation Date', 'note' => 'For ongoing studies']
-                            ]
-                        ],
-                    'experiences' => [
-                        'title' => 'Work Experience', 
-                        'description' => 'List work experiences that are most relevant to the position. Highlight responsibilities, achievements, and skills that align with the job requirements. You can include internships, part-time work, and volunteer positions if they\'re relevant.',
-                        'fields' => [
-                            'job_title' => ['type' => 'text', 'label' => 'Job Title', 'required' => true, 'placeholder' => 'e.g., Software Developer'],
-                            'company' => ['type' => 'text', 'label' => 'Company/Organization', 'required' => true, 'placeholder' => 'e.g., ABC Technologies'],
-                            'description' => ['type' => 'textarea', 'label' => 'Key Responsibilities & Achievements', 'required' => true, 'placeholder' => 'Focus on accomplishments and responsibilities that demonstrate your suitability for the role you\'re applying for...', 'rows' => 4],
-                            'start_date' => ['type' => 'date', 'label' => 'Start Date', 'required' => true],
-                            'end_date' => ['type' => 'date', 'label' => 'End Date', 'note' => 'Leave blank if currently employed']
-                        ]
-                    ],
-                   'qualifications' => [
-                        'title' => 'Professional Qualifications & Certifications',
-                        'description' => 'Include certifications, licenses, and professional qualifications that are relevant to the position. These could be technical certifications, professional memberships, or industry-specific qualifications.',
-                        'fields' => [
-                            'title' => ['type' => 'text', 'label' => 'Title', 'required' => false, 'placeholder' => 'e.g., Microsoft Azure Certified'],
-                            'type' => ['type' => 'select', 'label' => 'Type', 'required' => false, 'options' => ['Certification', 'License', 'Professional Qualification', 'Award', 'Other']],
-                            'institution' => ['type' => 'text', 'label' => 'Issuing Organization', 'required' => false, 'placeholder' => 'e.g., Microsoft, Cisco, PMI'],
-                            'issued_date' => ['type' => 'date', 'label' => 'Issued Date', 'required' => false],
-                            'notes' => ['type' => 'textarea', 'label' => 'Relevance to Position', 'required' => false, 'placeholder' => 'Explain how this qualification is relevant to the role you\'re applying for...', 'rows' => 2]
-                        ]
-                    ],
-
-                    'references' => [
-                        'title' => 'References',
-                        'description' => 'Provide references who can speak to your professional abilities and character, particularly those who have supervised your work in roles similar to the position you\'re applying for.',
-                        'fields' => [
-                            'name' => ['type' => 'text', 'label' => 'Full Name', 'required' => true, 'placeholder' => 'e.g., John Doe'],
-                            'relationship' => ['type' => 'text', 'label' => 'Professional Relationship', 'required' => true, 'placeholder' => 'e.g., Former Supervisor, Team Lead, Client'],
-                            'email' => ['type' => 'email', 'label' => 'Email', 'required' => true, 'placeholder' => 'reference@company.com'],
-                            'phone' => ['type' => 'tel', 'label' => 'Phone', 'placeholder' => '+266 xxxx xxxx'],
-                            'context' => ['type' => 'text', 'label' => 'Context of Relationship', 'placeholder' => 'e.g., Supervised my work on software development projects (2020-2022)']
-                        ]
+            $sections = [
+                'education' => [
+                    'title' => 'Education', 
+                    'required' => true,
+                    'description' => 'Include educational qualifications that are relevant to the position you\'re applying for. Focus on degrees, courses, or certifications that demonstrate the knowledge and skills required for the role.',
+                    'fields' => [
+                        'degree' => ['type' => 'text', 'label' => 'Degree', 'required' => true, 'placeholder' => 'e.g., Bachelor of Science'],
+                        'education_level' => ['type' => 'select', 'label' => 'Education Level', 'required' => true, 'options' => ['High School', 'Certificate', 'Diploma', 'Associate Degree', 'Bachelor\'s Degree', 'Postgraduate Diploma', 'Master\'s Degree', 'Doctorate (PhD)', 'Other']],
+                        'field_of_study' => ['type' => 'text', 'label' => 'Field of Study', 'required' => true, 'placeholder' => 'e.g., Computer Science'],
+                        'institution' => ['type' => 'text', 'label' => 'Institution', 'required' => true, 'placeholder' => 'e.g., National University of Lesotho'],
+                        'status' => ['type' => 'select', 'label' => 'Status', 'required' => true, 'options' => ['Completed', 'In Progress', 'Paused/Deferred']],
+                        'start_date' => ['type' => 'date', 'label' => 'Start Date'],
+                        'end_date' => ['type' => 'date', 'label' => 'End Date', 'note' => 'Leave blank if currently studying or not yet completed'],
+                        'expected_graduation' => ['type' => 'date', 'label' => 'Expected Graduation Date', 'note' => 'For ongoing studies']
                     ]
-                ];
+                ],
+                'experiences' => [
+                    'title' => 'Work Experience', 
+                    'description' => 'List work experiences that are most relevant to the position. Highlight responsibilities, achievements, and skills that align with the job requirements. You can include internships, part-time work, and volunteer positions if they\'re relevant.',
+                    'fields' => [
+                        'job_title' => ['type' => 'text', 'label' => 'Job Title', 'required' => true, 'placeholder' => 'e.g., Software Developer'],
+                        'company' => ['type' => 'text', 'label' => 'Company/Organization', 'required' => true, 'placeholder' => 'e.g., ABC Technologies'],
+                        'description' => ['type' => 'textarea', 'label' => 'Key Responsibilities & Achievements', 'required' => true, 'placeholder' => 'Focus on accomplishments and responsibilities that demonstrate your suitability for the role you\'re applying for...', 'rows' => 4],
+                        'start_date' => ['type' => 'date', 'label' => 'Start Date', 'required' => true],
+                        'end_date' => ['type' => 'date', 'label' => 'End Date', 'note' => 'Leave blank if currently employed']
+                    ]
+                ],
+                'qualifications' => [
+                    'title' => 'Professional Qualifications & Certifications',
+                    'required' => false, // Make the entire section optional
+                    'description' => 'Include certifications, licenses, and professional qualifications that are relevant to the position. These could be technical certifications, professional memberships, or industry-specific qualifications. All fields in this section are optional.',
+                    'fields' => [
+                        'title' => ['type' => 'text', 'label' => 'Title (Optional)', 'required' => false, 'placeholder' => 'e.g., Microsoft Azure Certified'],
+                        'type' => ['type' => 'select', 'label' => 'Type (Optional)', 'required' => false, 'options' => ['', 'Certification', 'License', 'Professional Qualification', 'Award', 'Other']],
+                        'institution' => ['type' => 'text', 'label' => 'Issuing Organization (Optional)', 'required' => false, 'placeholder' => 'e.g., Microsoft, Cisco, PMI'],
+                        'issued_date' => ['type' => 'date', 'label' => 'Issued Date (Optional)', 'required' => false],
+                        'notes' => ['type' => 'textarea', 'label' => 'Relevance to Position (Optional)', 'required' => false, 'placeholder' => 'Explain how this qualification is relevant to the role you\'re applying for...', 'rows' => 2]
+                    ]
+                ],
+                'references' => [
+                    'title' => 'References',
+                    'description' => 'Provide references who can speak to your professional abilities and character, particularly those who have supervised your work in roles similar to the position you\'re applying for.',
+                    'fields' => [
+                        'name' => ['type' => 'text', 'label' => 'Full Name', 'required' => true, 'placeholder' => 'e.g., John Doe'],
+                        'relationship' => ['type' => 'text', 'label' => 'Professional Relationship', 'required' => true, 'placeholder' => 'e.g., Former Supervisor, Team Lead, Client'],
+                        'email' => ['type' => 'email', 'label' => 'Email', 'required' => true, 'placeholder' => 'reference@company.com'],
+                        'phone' => ['type' => 'tel', 'label' => 'Phone', 'placeholder' => '+266 xxxx xxxx'],
+                        'context' => ['type' => 'text', 'label' => 'Context of Relationship', 'placeholder' => 'e.g., Supervised my work on software development projects (2020-2022)']
+                    ]
+                ]
+            ];
             @endphp
             
             @foreach($sections as $section => $config)
             <div class="card">
                 <div class="card-header">
                     <div class="card-title d-flex justify-content-between align-items-center">
-                        <span>{{ $config['title'] }} {{ isset($config['required']) ? '*' : '' }}</span>
+                        <span>{{ $config['title'] }} {{ isset($config['required']) && $config['required'] ? '*' : '' }}</span>
                         <button type="button" class="btn btn-primary btn-sm" onclick="addEntry('{{ $section }}')">
                             <i class="fa fa-plus"></i> Add {{ rtrim($config['title'], 's') }}
                         </button>
@@ -157,24 +158,28 @@
                                 @foreach($config['fields'] as $field => $fieldConfig)
                                 <div class="col-md-{{ in_array($fieldConfig['type'], ['textarea']) || $field == 'institution' || $field == 'context' ? '12' : '6' }}">
                                     <div class="form-group">
-                                        <label>{{ $fieldConfig['label'] }} {{ isset($fieldConfig['required']) ? '*' : '' }}</label>
+                                        <label>{{ $fieldConfig['label'] }}{{ isset($fieldConfig['required']) && $fieldConfig['required'] ? ' *' : '' }}</label>
                                         @if($fieldConfig['type'] == 'select')
-                                            <select name="{{ $section }}[{{ $index }}][{{ $field }}]" class="form-select" {{ isset($fieldConfig['required']) ? 'required' : '' }}>
-                                                <option value="">-- Select {{ $fieldConfig['label'] }} --</option>
+                                            <select name="{{ $section }}[{{ $index }}][{{ $field }}]" class="form-select" {{ isset($fieldConfig['required']) && $fieldConfig['required'] ? 'required' : '' }}>
+                                                @if(isset($fieldConfig['options']) && count($fieldConfig['options']) > 0 && $fieldConfig['options'][0] !== '')
+                                                    <option value="">-- Select {{ str_replace(' (Optional)', '', $fieldConfig['label']) }} --</option>
+                                                @endif
                                                 @foreach($fieldConfig['options'] as $option)
-                                                <option value="{{ $option }}" {{ (isset($item->{$field}) ? $item->{$field} : '') === $option ? 'selected' : '' }}>{{ $option }}</option>
+                                                    @if($option !== '')
+                                                    <option value="{{ $option }}" {{ (isset($item->{$field}) ? $item->{$field} : '') === $option ? 'selected' : '' }}>{{ $option }}</option>
+                                                    @endif
                                                 @endforeach
                                             </select>
                                         @elseif($fieldConfig['type'] == 'textarea')
                                             <textarea name="{{ $section }}[{{ $index }}][{{ $field }}]" class="form-control" 
                                                       rows="{{ $fieldConfig['rows'] ?? 3 }}" 
                                                       placeholder="{{ $fieldConfig['placeholder'] ?? '' }}"
-                                                      {{ (!empty($fieldConfig['required'])) ? 'required' : '' }}>{{ isset($item->{$field}) ? $item->{$field} : '' }}</textarea>
+                                                      {{ isset($fieldConfig['required']) && $fieldConfig['required'] ? 'required' : '' }}>{{ isset($item->{$field}) ? $item->{$field} : '' }}</textarea>
                                        @else
                                             <input type="{{ $fieldConfig['type'] }}" name="{{ $section }}[{{ $index }}][{{ $field }}]" 
                                                 class="form-control" value="{{ isset($item->{$field}) ? $item->{$field} : '' }}" 
                                                 placeholder="{{ $fieldConfig['placeholder'] ?? '' }}"
-                                                {{ (!empty($fieldConfig['required'])) ? 'required' : '' }}>
+                                                {{ isset($fieldConfig['required']) && $fieldConfig['required'] ? 'required' : '' }}>
                                         @endif
                                         @if(isset($fieldConfig['note']))
                                             <small class="form-text text-muted">{{ $fieldConfig['note'] }}</small>

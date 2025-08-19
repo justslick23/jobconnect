@@ -174,8 +174,6 @@
             @if($application->user->profile && $application->user->profile->phone)
                 <div class="contact-row">Phone: {{ $application->user->profile->phone }}</div>
             @endif
-            <div class="contact-row">LinkedIn: www.linkedin.com/in/profile</div>
-            <div class="contact-row">Location: {{ $application->jobRequisition->location ?? 'City, Country' }}</div>
         </div>
     </div>
 
@@ -183,16 +181,13 @@
     <div class="status-info">
         <strong>Applied:</strong> {{ $application->created_at->format('M d, Y') }} | 
         <strong>Reference:</strong> {{ $application->jobRequisition->reference_number ?? 'N/A' }} | 
-        <span class="status-badge">{{ ucfirst($application->status) }}</span>
-    </div>
-
-    <!-- Professional Summary -->
-    <div class="section">
-        <div class="section-title">Professional Summary</div>
-        <div class="profile-summary">
-            {{ $application->user->profile->bio ?? 'Experienced professional with a strong background in ' . ($application->jobRequisition->department->name ?? 'business operations') . ' seeking to contribute expertise and drive results in a dynamic organization.' }}
+        @auth
+        @if(auth()->user()->isHrAdmin())
+            <span class="status-badge">{{ ucfirst($application->status) }}</span>
+        @endif
+    @endauth
         </div>
-    </div>
+
 
     <!-- Experience Section -->
     @if($application->user->experiences && $application->user->experiences->count())
@@ -249,16 +244,7 @@
     </div>
     @endif
 
-    <!-- Languages -->
-    <div class="section">
-        <div class="section-title">Languages</div>
-        <div class="skills-list">
-            <span class="skill-item">English (Fluent)</span>
-            <span class="skill-item">French (Fluent)</span>
-            <span class="skill-item">German (Basic)</span>
-            <span class="skill-item">Spanish (Intermediate)</span>
-        </div>
-    </div>
+  
 
     <!-- References -->
     @if($application->user->references && $application->user->references->count())
@@ -284,7 +270,7 @@
 
     <!-- Footer -->
     <div class="footer">
-        Generated on {{ now()->format('F j, Y \a\t g:i A') }} — HR Management System
+        Generated on {{ now()->format('F j, Y \a\t g:i A') }} — CBS Recruitment
     </div>
 </div>
 </body>

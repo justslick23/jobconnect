@@ -13,6 +13,7 @@ class JobRequisition extends Model
 
     protected $fillable = [
         'uuid',
+        'slug',
         'reference_number',
         'created_by',
         'department_id',
@@ -42,13 +43,31 @@ class JobRequisition extends Model
     protected static function booted()
     {
         static::creating(function ($job) {
+            // Always assign a UUID
             $job->uuid = Str::uuid();
+    
+            // Initial slug
+            $job->slug = Str::slug($job->title);
         });
-
+    
+        static::updating(function ($job) {
+            // Update slug if title changes
+            if ($job->isDirty('title')) {
+                $job->slug = Str::slug($job->title);
+            }
+        });
+    
         static::created(function ($job) {
+            // Generate reference number after ID is known
             $job->reference_number = 'JOB-' . str_pad($job->id, 5, '0', STR_PAD_LEFT);
-            $job->saveQuietly(); // avoid infinite loop
+    
+            // Save quietly to avoid infinite loop
+            $job->saveQuietly();
         });
+    }
+    public function getSlugUuidAttribute()
+    {
+        return $this->slug . '-' . $this->uuid;
     }
 
     // Relationships

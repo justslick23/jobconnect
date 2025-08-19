@@ -2,7 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-        <title>CBS Recruitment Portal</title>
+        <title>@yield('title') | CBS Recruitment Portal</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
         <link rel="icon" href="{{ asset('/img/icons/cbs-logo.png') }}"  />
         <meta name="csrf-token" content="{{ csrf_token() }}">
