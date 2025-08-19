@@ -26,7 +26,7 @@
 
     <p style="margin-top: 30px;">
         Best regards,<br>
-        {{ config('app.name') }} Careers Team
+       CBS Recruitment
     </p>
 </body>
 </html>

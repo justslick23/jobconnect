@@ -12,7 +12,7 @@ class CreateApplicationScoresTable extends Migration
             $table->id();
 
             // Use foreignId if applications.id is unsignedBigInteger (default)
-            $table->foreignId('application_id')->constrained()->onDelete('cascade');
+            $table->foreignId('application_id')->constrained('job_applications')->onDelete('cascade');
 
             $table->float('skills_score')->default(0);
             $table->float('experience_score')->default(0);

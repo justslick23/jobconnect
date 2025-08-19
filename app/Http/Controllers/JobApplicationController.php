@@ -19,6 +19,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Font;
+
 class JobApplicationController extends Controller
 {
     public function create(Request $request)
@@ -481,6 +488,326 @@ public function submitReview(Request $request, JobApplication $application)
 
     return redirect()->back()->with('success', 'Review submitted successfully.');
 }
+
+ public function exportByJob($jobId)
+    {
+        try {
+            // Find the job requisition
+            $jobRequisition = JobRequisition::with(['department'])->findOrFail($jobId);
+            
+            // Get all applications for this job
+            $applications = JobApplication::with(['user', 'score', 'interviews'])
+                ->where('job_requisition_id', $jobId)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            // Create new spreadsheet
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+
+            // Set document properties
+            $spreadsheet->getProperties()
+                ->setCreator('HR Management System')
+                ->setTitle("Applications for {$jobRequisition->title}")
+                ->setDescription("Job applications export for {$jobRequisition->title}")
+                ->setKeywords('job applications export')
+                ->setCategory('HR Reports');
+
+            // Job Information Header
+            $sheet->setCellValue('A1', 'Job Title:');
+            $sheet->setCellValue('B1', $jobRequisition->title);
+            $sheet->setCellValue('A2', 'Department:');
+            $sheet->setCellValue('B2', $jobRequisition->department->name ?? 'General');
+            $sheet->setCellValue('A3', 'Posted Date:');
+            $sheet->setCellValue('B3', $jobRequisition->created_at->format('M j, Y'));
+            $sheet->setCellValue('A4', 'Total Applications:');
+            $sheet->setCellValue('B4', $applications->count());
+            $sheet->setCellValue('A5', 'Export Date:');
+            $sheet->setCellValue('B5', now()->format('M j, Y g:i A'));
+
+            // Style the header section
+            $sheet->getStyle('A1:A5')->getFont()->setBold(true);
+            $sheet->getStyle('A1:B5')->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('E3F2FD');
+
+            // Applications table headers (starting from row 7)
+            $headerRow = 7;
+            $headers = [
+                'A' => '#',
+                'B' => 'Applicant Name',
+                'C' => 'Email',
+                'D' => 'Phone',
+                'E' => 'Status',
+                'F' => 'Application Date',
+                'G' => 'Application Score',
+                'H' => 'Interview Score',
+                'I' => 'Experience (Years)',
+                'J' => 'Education Level',
+                'K' => 'Skills',
+                'L' => 'Cover Letter Preview',
+                'M' => 'Last Updated'
+            ];
+
+            foreach ($headers as $column => $header) {
+                $sheet->setCellValue($column . $headerRow, $header);
+            }
+
+            // Style headers
+            $headerRange = 'A' . $headerRow . ':M' . $headerRow;
+            $sheet->getStyle($headerRange)->getFont()->setBold(true);
+            $sheet->getStyle($headerRange)->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('2196F3');
+            $sheet->getStyle($headerRange)->getFont()->getColor()->setRGB('FFFFFF');
+            $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+            // Add applications data
+            $row = $headerRow + 1;
+            $counter = 1;
+
+            foreach ($applications as $application) {
+                $sheet->setCellValue('A' . $row, $counter);
+                $sheet->setCellValue('B' . $row, $application->user->name ?? 'N/A');
+                $sheet->setCellValue('C' . $row, $application->user->email ?? 'N/A');
+                
+                // Get phone from user profile or application data
+                $phone = $application->user->phone ?? $application->user->phone ?? 'N/A';
+                $sheet->setCellValue('D' . $row, $phone);
+                
+                $sheet->setCellValue('E' . $row, ucfirst($application->status));
+                $sheet->setCellValue('F' . $row, $application->created_at->format('M j, Y'));
+                
+                // Application score
+                $appScore = $application->score ? 
+                    number_format($application->score->total_score, 2) . '/100' : 'Not Scored';
+                $sheet->setCellValue('G' . $row, $appScore);
+                
+                // Interview score
+                $interviewScore = $application->interviews && $application->interviews->averageScore() !== null ? 
+                    $application->interviews->averageScore() . '/5' : 'Not Conducted';
+                $sheet->setCellValue('H' . $row, $interviewScore);
+                
+                // Experience
+                $experience = $application->user->experience->count ?? 'N/A';
+                $sheet->setCellValue('I' . $row, $experience);
+                
+                // Education
+                $education = $application->user->degree ?? 'N/A';
+                $sheet->setCellValue('J' . $row, $education);
+                
+                // Skills
+                $skills = is_array($application->user->skills) ? 
+                    implode(', ', $application->skills) : 
+                    ($application->skills ?? 'N/A');
+                $sheet->setCellValue('K' . $row, $skills);
+                
+                // Cover letter preview (first 100 characters)
+                $coverLetter = $application->cover_letter ? 
+                    substr(strip_tags($application->cover_letter), 0, 100) . '...' : 'N/A';
+                $sheet->setCellValue('L' . $row, $coverLetter);
+                
+                $sheet->setCellValue('M' . $row, $application->updated_at->format('M j, Y g:i A'));
+                
+                // Color code rows based on status
+                $rowRange = 'A' . $row . ':M' . $row;
+                switch (strtolower($application->status)) {
+                    case 'hired':
+                        $sheet->getStyle($rowRange)->getFill()
+                            ->setFillType(Fill::FILL_SOLID)
+                            ->getStartColor()->setRGB('E8F5E8');
+                        break;
+                    case 'shortlisted':
+                        $sheet->getStyle($rowRange)->getFill()
+                            ->setFillType(Fill::FILL_SOLID)
+                            ->getStartColor()->setRGB('FFF3CD');
+                        break;
+                    case 'rejected':
+                        $sheet->getStyle($rowRange)->getFill()
+                            ->setFillType(Fill::FILL_SOLID)
+                            ->getStartColor()->setRGB('F8D7DA');
+                        break;
+                }
+                
+                $row++;
+                $counter++;
+            }
+
+            // Auto-size columns
+            foreach (range('A', 'M') as $column) {
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+            }
+
+            // Add borders to the table
+            $tableRange = 'A' . $headerRow . ':M' . ($row - 1);
+            $sheet->getStyle($tableRange)->getBorders()->getAllBorders()
+                ->setBorderStyle(Border::BORDER_THIN);
+
+            // Summary statistics at the bottom
+            $summaryRow = $row + 2;
+            $sheet->setCellValue('A' . $summaryRow, 'SUMMARY STATISTICS');
+            $sheet->getStyle('A' . $summaryRow)->getFont()->setBold(true)->setSize(12);
+            
+            $summaryRow++;
+            $sheet->setCellValue('A' . $summaryRow, 'Total Applications:');
+            $sheet->setCellValue('B' . $summaryRow, $applications->count());
+            
+            $summaryRow++;
+            $sheet->setCellValue('A' . $summaryRow, 'Shortlisted:');
+            $sheet->setCellValue('B' . $summaryRow, $applications->where('status', 'shortlisted')->count());
+            
+            $summaryRow++;
+            $sheet->setCellValue('A' . $summaryRow, 'Hired:');
+            $sheet->setCellValue('B' . $summaryRow, $applications->where('status', 'hired')->count());
+            
+            $summaryRow++;
+            $sheet->setCellValue('A' . $summaryRow, 'Rejected:');
+            $sheet->setCellValue('B' . $summaryRow, $applications->where('status', 'rejected')->count());
+            
+            $summaryRow++;
+            $sheet->setCellValue('A' . $summaryRow, 'Pending:');
+            $sheet->setCellValue('B' . $summaryRow, $applications->where('status', 'submitted')->count());
+
+            // Style summary section
+            $summaryRange = 'A' . ($summaryRow - 5) . ':B' . $summaryRow;
+            $sheet->getStyle($summaryRange)->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('F5F5F5');
+            $sheet->getStyle('A' . ($summaryRow - 5) . ':A' . $summaryRow)->getFont()->setBold(true);
+
+            // Set sheet name
+            $sheet->setTitle('Applications Export');
+
+            // Generate filename
+            $filename = 'Applications_' . 
+                       str_replace([' ', '/', '\\', ':', '*', '?', '"', '<', '>', '|'], '_', $jobRequisition->title) . 
+                       '_' . now()->format('Y-m-d_H-i-s') . '.xlsx';
+
+            // Create writer and output
+            $writer = new Xlsx($spreadsheet);
+            
+            // Set headers for download
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Cache-Control: max-age=0');
+            header('Cache-Control: max-age=1');
+            header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
+            header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
+            header('Cache-Control: cache, must-revalidate');
+            header('Pragma: public');
+
+            $writer->save('php://output');
+            exit;
+
+        } catch (\Exception $e) {
+            \Log::error('Excel export error: ' . $e->getMessage());
+            return back()->with('error', 'Failed to export data. Please try again.');
+        }
+    }
+
+    /**
+     * Export all applications across all job requisitions
+     */
+    public function exportAll()
+    {
+        try {
+            $applications = JobApplication::with(['user', 'jobRequisition.department', 'score', 'interviews'])
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+
+            // Set document properties
+            $spreadsheet->getProperties()
+                ->setCreator('HR Management System')
+                ->setTitle('All Job Applications Export')
+                ->setDescription('Complete job applications export')
+                ->setKeywords('job applications export all')
+                ->setCategory('HR Reports');
+
+            // Headers
+            $headers = [
+                'A' => '#',
+                'B' => 'Job Title',
+                'C' => 'Department',
+                'D' => 'Applicant Name',
+                'E' => 'Email',
+                'F' => 'Status',
+                'G' => 'Application Date',
+                'H' => 'Application Score',
+                'I' => 'Interview Score',
+                'J' => 'Last Updated'
+            ];
+
+            $headerRow = 1;
+            foreach ($headers as $column => $header) {
+                $sheet->setCellValue($column . $headerRow, $header);
+            }
+
+            // Style headers
+            $headerRange = 'A1:J1';
+            $sheet->getStyle($headerRange)->getFont()->setBold(true);
+            $sheet->getStyle($headerRange)->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('2196F3');
+            $sheet->getStyle($headerRange)->getFont()->getColor()->setRGB('FFFFFF');
+
+            // Add data
+            $row = 2;
+            $counter = 1;
+
+            foreach ($applications as $application) {
+                $sheet->setCellValue('A' . $row, $counter);
+                $sheet->setCellValue('B' . $row, $application->jobRequisition->title ?? 'N/A');
+                $sheet->setCellValue('C' . $row, $application->jobRequisition->department->name ?? 'General');
+                $sheet->setCellValue('D' . $row, $application->user->name ?? 'N/A');
+                $sheet->setCellValue('E' . $row, $application->user->email ?? 'N/A');
+                $sheet->setCellValue('F' . $row, ucfirst($application->status));
+                $sheet->setCellValue('G' . $row, $application->created_at->format('M j, Y'));
+                
+                $appScore = $application->score ? 
+                    number_format($application->score->total_score, 2) . '/100' : 'Not Scored';
+                $sheet->setCellValue('H' . $row, $appScore);
+                
+                $interviewScore = $application->interviews && $application->interviews->averageScore() !== null ? 
+                    $application->interviews->averageScore() . '/5' : 'Not Conducted';
+                $sheet->setCellValue('I' . $row, $interviewScore);
+                
+                $sheet->setCellValue('J' . $row, $application->updated_at->format('M j, Y'));
+                
+                $row++;
+                $counter++;
+            }
+
+            // Auto-size columns
+            foreach (range('A', 'J') as $column) {
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+            }
+
+            // Add borders
+            $tableRange = 'A1:J' . ($row - 1);
+            $sheet->getStyle($tableRange)->getBorders()->getAllBorders()
+                ->setBorderStyle(Border::BORDER_THIN);
+
+            $sheet->setTitle('All Applications');
+
+            $filename = 'All_Applications_' . now()->format('Y-m-d_H-i-s') . '.xlsx';
+
+            $writer = new Xlsx($spreadsheet);
+            
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Cache-Control: max-age=0');
+
+            $writer->save('php://output');
+            exit;
+
+        } catch (\Exception $e) {
+            \Log::error('Excel export all error: ' . $e->getMessage());
+            return back()->with('error', 'Failed to export data. Please try again.');
+        }
+    }
 
 
 

@@ -210,26 +210,33 @@
                         @endif
 
                         <!-- Education Section -->
-                        @if($application->user->education->count() > 0)
-                        <div class="mb-4">
-                            <h5 class="fw-bold mb-3">Education Background</h5>
-                            @foreach($application->user->education as $edu)
-                            <div class="education-item mb-3">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <span class="badge bg-info me-2">{{ $edu->education_level }}</span>
-                                        <h6 class="mb-1 d-inline">{{ $edu->degree }}</h6>
-                                        <div class="text-muted">{{ $edu->institution }}</div>
+                       @if($application->user->education->count() > 0)
+                            <div class="mb-4">
+                                <h5 class="fw-bold mb-3">Education Background</h5>
+                                @foreach($application->user->education as $edu)
+                                    <div class="education-item mb-3">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <span class="badge bg-info me-2">{{ $edu->education_level }}</span>
+                                                <h6 class="mb-1 d-inline">{{ $edu->degree }}</h6>
+                                                <div class="text-muted">{{ $edu->institution }}</div>
+
+                                                {{-- Education status --}}
+                                                <br>
+                                                @if($edu->status)
+                                                    <span class="badge bg-secondary">{{ ucfirst($edu->status) }}</span>
+                                                @endif
+                                            </div>
+                                            <span class="badge bg-light text-dark">
+                                                {{ $edu->start_date ? \Carbon\Carbon::parse($edu->start_date)->format('Y') : 'N/A' }} – 
+                                                {{ $edu->end_date ? \Carbon\Carbon::parse($edu->end_date)->format('Y') : 'Present' }}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <span class="badge bg-light text-dark">
-                                        {{ $edu->start_date ? \Carbon\Carbon::parse($edu->start_date)->format('Y') : 'N/A' }} – 
-                                        {{ $edu->end_date ? \Carbon\Carbon::parse($edu->end_date)->format('Y') : 'Present' }}
-                                    </span>
-                                </div>
+                                @endforeach
                             </div>
-                            @endforeach
-                        </div>
                         @endif
+
 
                         <!-- Qualifications Section -->
                         @if($application->user->qualifications->count() > 0)
@@ -598,7 +605,6 @@ function downloadResume() {
     padding: 12px;
     background: #f8f9fa;
     border-radius: 8px;
-    border-left: 3px solid #007bff;
 }
 
 .score-display {

@@ -764,6 +764,228 @@ function showToast(type, message) {
         });
     }, 5000);
 }
+// Enhanced export functionality with loading states and error handling
 
+$(document).ready(function() {
+    // Individual job export
+    $(document).on('click', '.export-btn', function() {
+        const jobId = $(this).data('job-id');
+        const button = $(this);
+        const originalText = button.html();
+        
+        // Show loading state
+        button.html('<i class="fas fa-spinner fa-spin"></i> Exporting...');
+        button.prop('disabled', true);
+        
+        // Create a temporary link to trigger download
+        const link = document.createElement('a');
+        link.href = `/job-applications/export/${jobId}`;
+        link.download = ''; // Let the server determine filename
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Reset button state after a delay
+        setTimeout(() => {
+            button.html(originalText);
+            button.prop('disabled', false);
+            showToast('success', 'Export started! Your download should begin shortly.');
+        }, 1000);
+        
+        // Handle potential errors (though this is tricky with direct downloads)
+        setTimeout(() => {
+            button.html(originalText);
+            button.prop('disabled', false);
+        }, 10000); // Reset after 10 seconds regardless
+    });
+
+    // Export all applications
+    $('#exportAllBtn').on('click', function() {
+        const button = $(this);
+        const originalText = button.html();
+        
+        // Show loading state
+        button.html('<i class="fas fa-spinner fa-spin"></i> Exporting All...');
+        button.prop('disabled', true);
+        
+        // Create a temporary link to trigger download
+        const link = document.createElement('a');
+        link.href = '/job-applications/export-all';
+        link.download = '';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Reset button state
+        setTimeout(() => {
+            button.html(originalText);
+            button.prop('disabled', false);
+            showToast('success', 'Export started! Your download should begin shortly.');
+        }, 1000);
+        
+        // Safety reset
+        setTimeout(() => {
+            button.html(originalText);
+            button.prop('disabled', false);
+        }, 15000); // Longer timeout for all applications
+    });
+
+    // Alternative AJAX-based export with better error handling
+    function exportWithAjax(url, buttonElement, successMessage) {
+        const button = $(buttonElement);
+        const originalText = button.html();
+        
+        // Show loading state
+        button.html('<i class="fas fa-spinner fa-spin"></i> Preparing Export...');
+        button.prop('disabled', true);
+        
+        // Use AJAX to check if the export is ready, then download
+        $.ajax({
+            url: url,
+            method: 'GET',
+            xhrFields: {
+                responseType: 'blob' // Important for handling binary data
+            },
+            success: function(data, status, xhr) {
+                // Create blob link to download
+                const blob = new Blob([data], {
+                    type: xhr.getResponseHeader('Content-Type')
+                });
+                
+                const link = document.createElement('a');
+                link.href = window.URL.createObjectURL(blob);
+                
+                // Get filename from Content-Disposition header
+                const contentDisposition = xhr.getResponseHeader('Content-Disposition');
+                let filename = 'export.xlsx';
+                if (contentDisposition) {
+                    const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
+                    if (filenameMatch) {
+                        filename = filenameMatch[1];
+                    }
+                }
+                
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(link.href);
+                
+                showToast('success', successMessage);
+            },
+            error: function(xhr) {
+                let errorMessage = 'Export failed. Please try again.';
+                
+                if (xhr.status === 403) {
+                    errorMessage = 'You do not have permission to export this data.';
+                } else if (xhr.status === 404) {
+                    errorMessage = 'No data found to export.';
+                } else if (xhr.status === 500) {
+                    errorMessage = 'Server error occurred during export. Please try again later.';
+                }
+                
+                showToast('error', errorMessage);
+            },
+            complete: function() {
+                // Always reset button state
+                button.html(originalText);
+                button.prop('disabled', false);
+            }
+        });
+    }
+
+    // Uncomment these if you prefer AJAX-based exports:
+    /*
+    $(document).on('click', '.export-btn', function() {
+        const jobId = $(this).data('job-id');
+        exportWithAjax(
+            `/job-applications/export/${jobId}`, 
+            this, 
+            'Job applications exported successfully!'
+        );
+    });
+
+    $('#exportAllBtn').on('click', function() {
+        exportWithAjax(
+            '/job-applications/export-all', 
+            this, 
+            'All applications exported successfully!'
+        );
+    });
+    */
+});
+
+// Enhanced toast function with better styling
+function showToast(type, message, duration = 5000) {
+    // Remove existing toasts
+    $('.toast-notification').remove();
+    
+    const toastClass = {
+        'success': 'alert-success',
+        'error': 'alert-danger', 
+        'warning': 'alert-warning',
+        'info': 'alert-info'
+    };
+    
+    const iconClass = {
+        'success': 'fa-check-circle',
+        'error': 'fa-exclamation-circle',
+        'warning': 'fa-exclamation-triangle', 
+        'info': 'fa-info-circle'
+    };
+    
+    const toast = $(`
+        <div class="toast-notification alert ${toastClass[type]} alert-dismissible fade show position-fixed shadow-lg" 
+             style="top: 20px; right: 20px; z-index: 9999; min-width: 350px; max-width: 500px;">
+            <i class="fas ${iconClass[type]} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `);
+    
+    $('body').append(toast);
+    
+    // Auto remove after specified duration
+    setTimeout(() => {
+        toast.fadeOut(500, function() {
+            $(this).remove();
+        });
+    }, duration);
+}
+
+// Progress indicator for large exports
+function showProgressModal(title = 'Exporting Data') {
+    const modal = $(`
+        <div class="modal fade" id="exportProgressModal" tabindex="-1">
+            <div class="modal-dialog modal-sm modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-body text-center py-4">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h5>${title}</h5>
+                        <p class="text-muted mb-0">Please wait while we prepare your file...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `);
+    
+    $('body').append(modal);
+    const modalInstance = new bootstrap.Modal(document.getElementById('exportProgressModal'), {
+        backdrop: 'static',
+        keyboard: false
+    });
+    modalInstance.show();
+    
+    return {
+        hide: function() {
+            modalInstance.hide();
+            setTimeout(() => {
+                $('#exportProgressModal').remove();
+            }, 300);
+        }
+    };
+}
 </script>
 @endsection

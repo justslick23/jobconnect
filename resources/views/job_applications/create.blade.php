@@ -376,31 +376,42 @@
                         </div>
                         @endif
 
-                        {{-- Supporting Documents --}}
-                        @if($attachments->count())
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h6 class="mb-0">
-                                    <i class="fas fa-paperclip text-danger me-2"></i>
-                                    Documents
-                                </h6>
-                            </div>
-                            <div class="card-body">
-                                @foreach($attachments as $attachment)
-                                    <div class="document-item">
-                                        <a href="{{ route('job-applications.downloadAttachment', $attachment->id) }}" 
-                                           class="d-flex align-items-center text-decoration-none">
-                                            <i class="fas fa-file-pdf text-danger me-3"></i>
-                                            <span class="flex-grow-1">{{ $attachment->type }}</span>
-                                            <i class="fas fa-external-link-alt text-muted"></i>
-                                        </a>
-                                    </div>
-                                @endforeach
-                            </div>
+                       {{-- Supporting Documents --}}
+{{-- Supporting Documents --}}
+@if($attachments)
+    <div class="card mb-4">
+        <div class="card-header">
+            <h6 class="mb-0">
+                <i class="fas fa-paperclip text-danger me-2"></i>
+                Documents
+            </h6>
+        </div>
+        <div class="card-body">
+            @foreach($attachments as $type => $docs)
+                <h6 class="text-muted">{{ ucfirst($type) }}</h6>
+
+                {{-- Ensure $docs is always iterable --}}
+                @php
+                    $docsIterable = is_iterable($docs) ? $docs : [$docs];
+                @endphp
+
+                @foreach($docsIterable as $doc)
+                    @if(is_object($doc))
+                        <div class="document-item">
+                            <a href="{{ route('job-applications.downloadAttachment', $doc->id) }}" 
+                               class="d-flex align-items-center text-decoration-none">
+                                <i class="fas fa-file-pdf text-danger me-3"></i>
+                                <span class="flex-grow-1">{{ $doc->type }}</span>
+                                <i class="fas fa-external-link-alt text-muted"></i>
+                            </a>
                         </div>
-                        @endif
-                    </div>
-                </div>
+                    @endif
+                @endforeach
+            @endforeach
+        </div>
+    </div>
+@endif
+
 
                 {{-- Submit Application --}}
                 <div class="card">

@@ -2,9 +2,9 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-        <title>{{ config('app.name', 'Kaiadmin') }} - Admin Dashboard</title>
+        <title>CBS Recruitment Portal</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
-        <link rel="icon" href="{{ asset('assets/img/kaiadmin/favicon.ico') }}" type="image/x-icon" />
+        <link rel="icon" href="{{ asset('/img/icons/cbs-logo.png') }}"  />
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         {{-- Fonts and icons --}}

@@ -111,9 +111,10 @@ class ProfileController extends Controller
             'qualifications.*.notes' => 'nullable|string',
     
             // Documents
-            'resume' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
-            'cover_letter' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
-            'transcripts' => 'nullable|file|mimes:pdf|max:5120',
+            'resume'          => 'nullable|file|mimes:pdf,doc,docx|max:5120',
+            'cover_letter'    => 'nullable|file|mimes:pdf,doc,docx|max:5120',
+            'transcripts'     => 'nullable|file|mimes:pdf,doc,docx|max:5120',
+            'other_documents.*' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
         ], [
             // Custom error messages
             'education.required' => 'At least one education entry is required.',
@@ -208,55 +209,100 @@ class ProfileController extends Controller
         }));
     }
 
-    private function handleFileUploads(User $user, Request $request)
-    {
-        $singleTypes = ['resume', 'cover_letter', 'transcripts'];
-        $multiType = 'other';
+private function handleFileUploads(User $user, Request $request)
+{
+    // Document types that should only keep the latest upload
+    $singleTypes = ['resume', 'cover_letter', 'transcripts'];
+    // Type for multiple supporting documents
+    $multiType = 'other';
     
-        // Handle single uploads (replace existing)
-        foreach ($singleTypes as $type) {
-            if ($request->hasFile($type)) {
-                $file = $request->file($type);
-    
-                // Delete existing
-                $existing = $user->attachments()->where('type', $type)->first();
-                if ($existing) {
-                    Storage::disk('public')->delete($existing->file_path);
-                    $existing->delete();
-                }
-    
-                $filePath = $file->storeAs(
-                    'applicant-documents',
-                    $user->id . '_' . $type . '_' . time() . '.' . $file->getClientOriginalExtension(),
-                    'public'
-                );
-    
-                $user->attachments()->create([
-                    'type' => $type,
-                    'original_name' => $file->getClientOriginalName(),
-                    'file_path' => $filePath,
-                ]);
+    // === Handle single uploads (replace existing) ===
+    foreach ($singleTypes as $type) {
+        if ($request->hasFile($type) && $request->file($type)->isValid()) {
+            $file = $request->file($type);
+            
+            // More robust validation
+            $originalName = $file->getClientOriginalName();
+            $extension = $file->getClientOriginalExtension();
+            
+            if (empty($originalName) || empty($extension)) {
+                continue; // Skip this file if name or extension is empty
             }
-        }
-    
-        // Handle multiple other supporting documents
-        if ($request->hasFile('other_documents')) {
-            foreach ($request->file('other_documents') as $file) {
+            
+            // Delete existing file if present
+            $existing = $user->attachments()->where('type', $type)->first();
+            if ($existing) {
+                Storage::disk('public')->delete($existing->file_path);
+                $existing->delete();
+            }
+            
+            // Generate filename with fallback
+            $filename = $user->id . '_' . $type . '_' . time() . '.' . $extension;
+            
+            try {
                 $filePath = $file->storeAs(
                     'applicant-documents',
-                    $user->id . '_other_' . uniqid() . '.' . $file->getClientOriginalExtension(),
+                    $filename,
                     'public'
                 );
-    
-                $user->attachments()->create([
-                    'type' => $multiType,
-                    'original_name' => $file->getClientOriginalName(),
-                    'file_path' => $filePath,
+                
+                if ($filePath) {
+                    // Save DB record
+                    $user->attachments()->create([
+                        'type' => $type,
+                        'original_name' => $originalName,
+                        'file_path' => $filePath,
+                    ]);
+                }
+            } catch (\Exception $e) {
+                // Log error or handle as needed
+                \Log::error('File upload failed: ' . $e->getMessage(), [
+                    'user_id' => $user->id,
+                    'type' => $type,
+                    'original_name' => $originalName
                 ]);
             }
         }
     }
     
+    // === Handle multiple supporting documents ===
+    if ($request->hasFile('other_documents')) {
+        foreach ($request->file('other_documents') as $file) {
+            if ($file && $file->isValid()) {
+                $originalName = $file->getClientOriginalName();
+                $extension = $file->getClientOriginalExtension();
+                
+                if (empty($originalName) || empty($extension)) {
+                    continue; // Skip this file
+                }
+                
+                $filename = $user->id . '_other_' . uniqid() . '.' . $extension;
+                
+                try {
+                    $filePath = $file->storeAs(
+                        'applicant-documents',
+                        $filename,
+                        'public'
+                    );
+                    
+                    if ($filePath) {
+                        $user->attachments()->create([
+                            'type' => $multiType,
+                            'original_name' => $originalName,
+                            'file_path' => $filePath,
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    \Log::error('File upload failed: ' . $e->getMessage(), [
+                        'user_id' => $user->id,
+                        'type' => $multiType,
+                        'original_name' => $originalName
+                    ]);
+                }
+            }
+        }
+    }
+}
 
     // Sync Methods
     protected function updateSkills(User $user, array $skills)

@@ -2,22 +2,30 @@
 <div class="sidebar" data-background-color="dark">
   <div class="sidebar-logo">
       <!-- Logo Header -->
-      <div class="logo-header" data-background-color="dark">
-          <a href="{{ route('dashboard') }}" class="logo">
-              <h3>JobConnect </hr>
-          </a>
-          <div class="nav-toggle">
-              <button class="btn btn-toggle toggle-sidebar">
-                  <i class="gg-menu-right"></i>
-              </button>
-              <button class="btn btn-toggle sidenav-toggler">
-                  <i class="gg-menu-left"></i>
-              </button>
-          </div>
-          <button class="topbar-toggler more">
-              <i class="gg-more-vertical-alt"></i>
-          </button>
-      </div>
+       <br><br>
+       <div class="logo-header text-center py-3">
+        <a href="{{ route('dashboard') }}">
+            <img src="{{ asset('img/icons/cbs-logo.png') }}" alt="CBS Logo" class="img-fluid" style="max-height: 100px;">
+        </a>
+
+        <!-- Sidebar toggles -->
+        <div class="nav-toggle mt-2 d-flex justify-content-center gap-1">
+            <button class="btn btn-toggle toggle-sidebar">
+                <i class="gg-menu-right"></i>
+            </button>
+            <button class="btn btn-toggle sidenav-toggler">
+                <i class="gg-menu-left"></i>
+            </button>
+        </div>
+
+        <button class="topbar-toggler more mt-2">
+            <i class="gg-more-vertical-alt"></i>
+        </button>
+    </div>
+    <!-- End Top Logo -->
+
+    <!-- Bottom: Recruitment System -->
+
       <!-- End Logo Header -->
   </div>
 

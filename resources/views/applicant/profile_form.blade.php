@@ -95,17 +95,18 @@
                             'end_date' => ['type' => 'date', 'label' => 'End Date', 'note' => 'Leave blank if currently employed']
                         ]
                     ],
-                    'qualifications' => [
+                   'qualifications' => [
                         'title' => 'Professional Qualifications & Certifications',
                         'description' => 'Include certifications, licenses, and professional qualifications that are relevant to the position. These could be technical certifications, professional memberships, or industry-specific qualifications.',
                         'fields' => [
-                            'title' => ['type' => 'text', 'label' => 'Title', 'required' => true, 'placeholder' => 'e.g., Microsoft Azure Certified'],
-                            'type' => ['type' => 'select', 'label' => 'Type', 'required' => true, 'options' => ['Certification', 'License', 'Professional Qualification', 'Award', 'Other']],
-                            'institution' => ['type' => 'text', 'label' => 'Issuing Organization', 'required' => true, 'placeholder' => 'e.g., Microsoft, Cisco, PMI'],
-                            'issued_date' => ['type' => 'date', 'label' => 'Issued Date'],
-                            'notes' => ['type' => 'textarea', 'label' => 'Relevance to Position', 'placeholder' => 'Explain how this qualification is relevant to the role you\'re applying for...', 'rows' => 2]
+                            'title' => ['type' => 'text', 'label' => 'Title', 'required' => false, 'placeholder' => 'e.g., Microsoft Azure Certified'],
+                            'type' => ['type' => 'select', 'label' => 'Type', 'required' => false, 'options' => ['Certification', 'License', 'Professional Qualification', 'Award', 'Other']],
+                            'institution' => ['type' => 'text', 'label' => 'Issuing Organization', 'required' => false, 'placeholder' => 'e.g., Microsoft, Cisco, PMI'],
+                            'issued_date' => ['type' => 'date', 'label' => 'Issued Date', 'required' => false],
+                            'notes' => ['type' => 'textarea', 'label' => 'Relevance to Position', 'required' => false, 'placeholder' => 'Explain how this qualification is relevant to the role you\'re applying for...', 'rows' => 2]
                         ]
                     ],
+
                     'references' => [
                         'title' => 'References',
                         'description' => 'Provide references who can speak to your professional abilities and character, particularly those who have supervised your work in roles similar to the position you\'re applying for.',
@@ -168,12 +169,12 @@
                                             <textarea name="{{ $section }}[{{ $index }}][{{ $field }}]" class="form-control" 
                                                       rows="{{ $fieldConfig['rows'] ?? 3 }}" 
                                                       placeholder="{{ $fieldConfig['placeholder'] ?? '' }}"
-                                                      {{ isset($fieldConfig['required']) ? 'required' : '' }}>{{ isset($item->{$field}) ? $item->{$field} : '' }}</textarea>
-                                        @else
+                                                      {{ (!empty($fieldConfig['required'])) ? 'required' : '' }}>{{ isset($item->{$field}) ? $item->{$field} : '' }}</textarea>
+                                       @else
                                             <input type="{{ $fieldConfig['type'] }}" name="{{ $section }}[{{ $index }}][{{ $field }}]" 
-                                                   class="form-control" value="{{ isset($item->{$field}) ? $item->{$field} : '' }}" 
-                                                   placeholder="{{ $fieldConfig['placeholder'] ?? '' }}"
-                                                   {{ isset($fieldConfig['required']) ? 'required' : '' }}>
+                                                class="form-control" value="{{ isset($item->{$field}) ? $item->{$field} : '' }}" 
+                                                placeholder="{{ $fieldConfig['placeholder'] ?? '' }}"
+                                                {{ (!empty($fieldConfig['required'])) ? 'required' : '' }}>
                                         @endif
                                         @if(isset($fieldConfig['note']))
                                             <small class="form-text text-muted">{{ $fieldConfig['note'] }}</small>
@@ -222,65 +223,197 @@
             </div>
 
             <!-- Documents -->
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Upload Supporting Documents</div>
-                    <div class="card-subtitle mt-2">
-                        <small class="text-muted">Upload documents that support your application. Ensure your CV/Resume highlights experiences and achievements relevant to the position.</small>
-                    </div>
-                </div>
-                <div class="card-body">
-                    @php 
-                        $attachments = isset($user) && $user->attachments ? $user->attachments->groupBy('type') : collect();
-                    @endphp
-                    
-                    <!-- Resume/CV - Required -->
-                    <div class="form-group">
-                        <label>CV / Resume * (PDF, DOCX, max 5MB)</label>
-                        <input type="file" name="resume" class="form-control" accept=".pdf,.doc,.docx" 
-                               {{ !($attachments->has('resume') && $attachments['resume']->count() > 0) ? 'required' : '' }}>
-                        <small class="form-text text-muted">Ensure your CV highlights relevant experience and achievements for the position you're applying for.</small>
-                        @if($attachments->has('resume') && $attachments['resume']->count() > 0)
-                            <small class="form-text text-muted">
-                                Existing: <a href="{{ asset('storage/' . $attachments['resume'][0]->file_path) }}" target="_blank">{{ $attachments['resume'][0]->original_name }}</a>
-                            </small>
-                        @endif
-                        @error('resume')<small class="form-text text-danger">{{ $message }}</small>@enderror
-                    </div>
-                    
-                    <!-- Optional documents -->
-                    @foreach(['cover_letter' => 'Cover Letter', 'transcripts' => 'Academic Transcripts'] as $key => $label)
-                    <div class="form-group">
-                        <label>{{ $label }} (PDF, DOCX, max 5MB)</label>
-                        <input type="file" name="{{ $key }}" class="form-control" accept=".pdf,.doc,.docx">
-                        @if($key == 'cover_letter')
-                            <small class="form-text text-muted">A tailored cover letter explaining your interest and suitability for the specific position.</small>
-                        @endif
-                        @if($attachments->has($key) && $attachments[$key]->count() > 0)
-                            <small class="form-text text-muted">
-                                Existing: <a href="{{ asset('storage/' . $attachments[$key][0]->file_path) }}" target="_blank">{{ $attachments[$key][0]->original_name }}</a>
-                            </small>
-                        @endif
-                        @error($key)<small class="form-text text-danger">{{ $message }}</small>@enderror
-                    </div>
+            
+<!-- Documents -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Upload Supporting Documents</div>
+        <div class="card-subtitle mt-2">
+            <small class="text-muted">Upload documents that support your application. Ensure your CV/Resume highlights experiences and achievements relevant to the position.</small>
+        </div>
+    </div>
+    <div class="card-body">
+        @php 
+            $attachments = isset($user) && $user->attachments ? $user->attachments->groupBy('type') : collect();
+        @endphp
+        
+        <!-- Resume/CV - Required -->
+        <div class="form-group">
+            <label>CV / Resume * (PDF, DOCX, max 5MB)</label>
+            <input type="file" 
+                   name="resume" 
+                   class="form-control" 
+                   accept=".pdf,.doc,.docx"
+                   data-max-size="5242880"
+                   {{ !($attachments->has('resume') && $attachments['resume']->count() > 0) ? 'required' : '' }}>
+            <small class="form-text text-muted">Ensure your CV highlights relevant experience and achievements for the position you're applying for.</small>
+            @if($attachments->has('resume') && $attachments['resume']->count() > 0)
+                <small class="form-text text-success">
+                    Current file: <a href="{{ asset('storage/' . $attachments['resume'][0]->file_path) }}" target="_blank">{{ $attachments['resume'][0]->original_name }}</a>
+                    <br><em>Upload a new file to replace the current one</em>
+                </small>
+            @endif
+            @error('resume')<small class="form-text text-danger">{{ $message }}</small>@enderror
+        </div>
+        
+        <!-- Cover Letter -->
+        <div class="form-group">
+            <label>Cover Letter (PDF, DOCX, max 5MB)</label>
+            <input type="file" 
+                   name="cover_letter" 
+                   class="form-control" 
+                   accept=".pdf,.doc,.docx"
+                   data-max-size="5242880">
+            <small class="form-text text-muted">A tailored cover letter explaining your interest and suitability for the specific position.</small>
+            @if($attachments->has('cover_letter') && $attachments['cover_letter']->count() > 0)
+                <small class="form-text text-success">
+                    Current file: <a href="{{ asset('storage/' . $attachments['cover_letter'][0]->file_path) }}" target="_blank">{{ $attachments['cover_letter'][0]->original_name }}</a>
+                </small>
+            @endif
+            @error('cover_letter')<small class="form-text text-danger">{{ $message }}</small>@enderror
+        </div>
+
+        <!-- Academic Transcripts -->
+        <div class="form-group">
+            <label>Academic Transcripts (PDF, DOCX, max 5MB)</label>
+            <input type="file" 
+                   name="transcripts" 
+                   class="form-control" 
+                   accept=".pdf,.doc,.docx"
+                   data-max-size="5242880">
+            @if($attachments->has('transcripts') && $attachments['transcripts']->count() > 0)
+                <small class="form-text text-success">
+                    Current file: <a href="{{ asset('storage/' . $attachments['transcripts'][0]->file_path) }}" target="_blank">{{ $attachments['transcripts'][0]->original_name }}</a>
+                </small>
+            @endif
+            @error('transcripts')<small class="form-text text-danger">{{ $message }}</small>@enderror
+        </div>
+        
+        <!-- Other Supporting Documents -->
+        <div class="form-group">
+            <label>Other Supporting Documents (Multiple files allowed)</label>
+            <input type="file" 
+                   name="other_documents[]" 
+                   class="form-control" 
+                   multiple 
+                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                   data-max-size="5242880">
+            <small class="form-text text-muted">Additional documents relevant to your application (certifications, portfolios, etc.). Max 5MB per file.</small>
+            @if($attachments->has('other') && $attachments['other']->count() > 0)
+                <small class="form-text text-success">
+                    Current files: 
+                    @foreach($attachments['other'] as $doc)
+                        <a href="{{ asset('storage/' . $doc->file_path) }}" target="_blank">{{ $doc->original_name }}</a>{{ !$loop->last ? ', ' : '' }}
                     @endforeach
-                    
-                    <div class="form-group">
-                        <label>Other Supporting Documents (Multiple files allowed)</label>
-                        <input type="file" name="other_documents[]" class="form-control" multiple accept=".pdf,.jpg,.jpeg,.png,.zip,.rar">
-                        <small class="form-text text-muted">Additional documents relevant to your application (certifications, portfolios, etc.)</small>
-                        @if($attachments->has('other') && $attachments['other']->count() > 0)
-                            <small class="form-text text-muted">
-                                Existing: 
-                                @foreach($attachments['other'] as $doc)
-                                    <a href="{{ asset('storage/' . $doc->file_path) }}" target="_blank">{{ $doc->original_name }}</a>{{ !$loop->last ? ', ' : '' }}
-                                @endforeach
-                            </small>
-                        @endif
-                        @error('other_documents.*')<small class="form-text text-danger">{{ $message }}</small>@enderror
-                    </div>
-                </div>
-            </div>
+                </small>
+            @endif
+            @error('other_documents.*')<small class="form-text text-danger">{{ $message }}</small>@enderror
+        </div>
+
+        <!-- File validation feedback -->
+        <div id="file-validation-feedback" class="mt-2"></div>
+    </div>
+</div>
+
+<script>
+// Add this to your existing JavaScript section
+document.addEventListener('DOMContentLoaded', function() {
+    // File validation
+    const fileInputs = document.querySelectorAll('input[type="file"]');
+    const feedbackDiv = document.getElementById('file-validation-feedback');
+    
+    fileInputs.forEach(input => {
+        input.addEventListener('change', function() {
+            validateFiles(this);
+        });
+    });
+    
+    function validateFiles(input) {
+        const files = input.files;
+        const maxSize = parseInt(input.dataset.maxSize) || 5242880; // 5MB default
+        const feedback = [];
+        
+        if (!files || files.length === 0) return;
+        
+        Array.from(files).forEach((file, index) => {
+            const errors = [];
+            
+            // Check file size
+            if (file.size > maxSize) {
+                errors.push(`File "${file.name}" is too large (${formatFileSize(file.size)}). Maximum allowed: ${formatFileSize(maxSize)}`);
+            }
+            
+            // Check if file has a name
+            if (!file.name || file.name.trim() === '') {
+                errors.push('Invalid file: File name is empty');
+            }
+            
+            // Check file extension
+            const allowedExtensions = input.accept.split(',').map(ext => ext.trim().toLowerCase());
+            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (allowedExtensions.length > 0 && !allowedExtensions.includes(fileExtension)) {
+                errors.push(`File "${file.name}" has unsupported format. Allowed: ${allowedExtensions.join(', ')}`);
+            }
+            
+            if (errors.length > 0) {
+                feedback.push(...errors);
+                // Clear the invalid file
+                input.value = '';
+            }
+        });
+        
+        // Display feedback
+        if (feedback.length > 0) {
+            feedbackDiv.innerHTML = '<div class="alert alert-danger"><ul class="mb-0">' + 
+                feedback.map(msg => `<li>${msg}</li>`).join('') + '</ul></div>';
+        } else {
+            feedbackDiv.innerHTML = '';
+        }
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    // Form submission validation
+    const form = document.querySelector('form[enctype="multipart/form-data"]');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            // Check for any validation errors
+            if (feedbackDiv.innerHTML.includes('alert-danger')) {
+                e.preventDefault();
+                alert('Please fix file upload errors before submitting the form.');
+                return false;
+            }
+            
+            // Additional check for empty files
+            const fileInputs = form.querySelectorAll('input[type="file"]');
+            let hasEmptyFiles = false;
+            
+            fileInputs.forEach(input => {
+                if (input.files && input.files.length > 0) {
+                    Array.from(input.files).forEach(file => {
+                        if (!file.name || file.name.trim() === '' || file.size === 0) {
+                            hasEmptyFiles = true;
+                        }
+                    });
+                }
+            });
+            
+            if (hasEmptyFiles) {
+                e.preventDefault();
+                alert('One or more selected files appear to be empty or invalid. Please select valid files.');
+                return false;
+            }
+        });
+    }
+});
+</script>
 
             <div class="text-end mt-4">
                 <button type="submit" class="btn btn-primary">Update Profile</button>

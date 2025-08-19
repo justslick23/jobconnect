@@ -55,6 +55,12 @@
                                    name="qualification_bonus" 
                                    value="{{ old('qualification_bonus', $setting->qualification_bonus) }}" required>
                         </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-bold">Shortlisting Threshold (%)</label>
+                            <input type="number" step="0.01" class="form-control form-control-sm" 
+                                   name="threshold" 
+                                   value="{{ old('threshold', $setting->threshold ?? 70) }}" min="0" max="100" required>
+                        </div>
                     </div>
 
                     <div class="mt-4 d-flex justify-content-end">

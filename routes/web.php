@@ -59,6 +59,17 @@ Route::delete('/jobs/{jobRequisition}', [JobRequisitionController::class, 'destr
     ->name('job-applications.quick-action');
     Route::post('/job-applications/bulk-action', [JobApplicationController::class, 'bulkAction'])->name('job-applications.bulk-action');
 
+    // Export applications for a specific job
+    Route::get('/job-applications/export/{jobId}', [JobApplicationController::class, 'exportByJob'])
+        ->name('job-applications.export')
+        ->where('jobId', '[0-9]+');
+    
+    // Export all applications
+    Route::get('/job-applications/export-all', [JobApplicationController::class, 'exportAll'])
+        ->name('job-applications.export-all');    
+
+        
+
     // Interviews
     Route::get('/interviews/schedule/{application}', [InterviewController::class, 'create'])->name('interviews.schedule');
     Route::post('/interviews', [InterviewController::class, 'store'])->name('interviews.store');

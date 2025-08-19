@@ -3,100 +3,94 @@
 @section('styles')
     <!-- DataTables CSS -->
     <link href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css" rel="stylesheet" />
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <!-- Bootstrap Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet" />
-
-    <style>
-        .page-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem 0;
-            margin-bottom: 2rem;
-        }
-        .table-container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-            overflow: hidden;
-        }
-        .table th {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border: none;
-            font-weight: 600;
-            color: #495057;
-            padding: 1rem;
-        }
-        .table td {
-            padding: 1rem;
-            vertical-align: middle;
-            border-color: #f1f3f4;
-        }
-        .table tbody tr:hover {
-            background-color: #f8f9fa;
-            transform: scale(1.002);
-            transition: all 0.2s ease;
-        }
-        .empty-state {
-            text-align: center;
-            padding: 3rem;
-            color: #6c757d;
-        }
-        .empty-state i {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-            opacity: 0.5;
-        }
-    </style>
 @endsection
 
 @section('content')
-<div class="page-header">
-    <div class="container">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <h1 class="mb-2 text-white"><i class="bi bi-diagram-3 me-2"></i>Department Management</h1>
-                <p class="mb-0 opacity-75">Manage and organize your internal departments</p>
-            </div>
-            <div class="col-md-4 text-md-end">
-                <a href="{{ route('departments.create') }}" class="btn btn-light btn-lg">
-                    <i class="bi bi-plus-circle me-2"></i> Add Department
-                </a>
+<div class="container">
+    <div class="page-inner">
+        <div class="page-header">
+            <h3 class="fw-bold mb-3">Department Management</h3>
+            <ul class="breadcrumbs mb-3">
+                <li class="nav-home">
+                    <a href="{{ route('dashboard') }}">
+                        <i class="icon-home"></i>
+                    </a>
+                </li>
+                <li class="separator">
+                    <i class="icon-arrow-right"></i>
+                </li>
+                <li class="nav-item">
+                    <a href="#">Departments</a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="d-flex align-items-center">
+                            <h4 class="card-title">Departments</h4>
+                            <a href="{{ route('departments.create') }}" class="btn btn-primary btn-round ms-auto">
+                                <i class="fa fa-plus"></i>
+                                Add Department
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        @if($departments->isEmpty())
+                            <div class="text-center py-5">
+                                <div class="empty-state">
+                                    <i class="fa fa-folder-open fa-5x text-muted mb-3"></i>
+                                    <h4 class="text-muted">No Departments Found</h4>
+                                    <p class="text-muted">There are currently no departments in the system.</p>
+                                </div>
+                            </div>
+                        @else
+                            <div class="table-responsive">
+                                <table id="departmentsTable" class="display table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Department Name</th>
+                                            <th style="width: 10%">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($departments as $department)
+                                            <tr>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="avatar avatar-xs me-3">
+                                                            <span class="avatar-title bg-primary rounded-circle">
+                                                                <i class="fa fa-building"></i>
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <h6 class="mb-0">{{ $department->name }}</h6>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="form-button-action">
+                                                        <button type="button" class="btn btn-link btn-primary btn-lg" title="Edit Department">
+                                                            <i class="fa fa-edit"></i>
+                                                        </button>
+                                                        <button type="button" class="btn btn-link btn-danger" title="Remove Department">
+                                                            <i class="fa fa-times"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-</div>
-
-<div class="container">
-    @if($departments->isEmpty())
-        <div class="table-container">
-            <div class="empty-state">
-                <i class="bi bi-folder-x"></i>
-                <h4>No Departments Found</h4>
-                <p class="mb-0">There are currently no departments in the system.</p>
-            </div>
-        </div>
-    @else
-        <div class="table-container">
-            <table id="departmentsTable" class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th><i class="bi bi-diagram-3 me-2"></i>Department Name</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($departments as $department)
-                        <tr>
-                            <td>
-                                <div class="fw-bold">{{ $department->name }}</div>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    @endif
 </div>
 @endsection
 
@@ -105,23 +99,5 @@
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <!-- DataTables JS -->
     <script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-    <script>
-        $(document).ready(function () {
-            $('#departmentsTable').DataTable({
-                responsive: true,
-                pageLength: 25,
-                order: [],
-                language: {
-                    search: "Search departments:",
-                    lengthMenu: "Show _MENU_ departments per page",
-                    info: "Showing _START_ to _END_ of _TOTAL_ departments",
-                    emptyTable: "No departments found",
-                    zeroRecords: "No matching departments"
-                }
-            });
-        });
-    </script>
 @endsection

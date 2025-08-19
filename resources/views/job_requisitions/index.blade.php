@@ -183,39 +183,27 @@
                                     
                                 @endunless
                                 <td>{{ $req->created_at->format('Y-m-d') }}</td>
-
                                 <td class="text-center">
                                     @if(!auth()->user()->isApplicant())
                                         <div class="btn-group" role="group">
-                                            <a href="{{ route('job-requisitions.show', $req->uuid) }}" class="btn btn-sm btn-outline-primary" title="View">
-                                                <i class="bi bi-eye"></i>
+                                            <a href="{{ route('job-requisitions.show', $req->uuid) }}" 
+                                            class="btn btn-sm btn-outline-primary rounded" title="View">
+                                                <i class="bi bi-eye me-1"></i> View
                                             </a>
 
-                                            @if(auth()->user()->isHrAdmin() && $req->approval_status === 'pending')
-                                                <form method="POST" action="{{ route('job-requisitions.approve', $req) }}" class="d-inline">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Approve">
-                                                        <i class="bi bi-check-lg"></i>
-                                                    </button>
-                                                </form>
-                                                <form method="POST" action="{{ route('job-requisitions.reject', $req) }}" class="d-inline">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Reject">
-                                                        <i class="bi bi-x-lg"></i>
-                                                    </button>
-                                                </form>
-                                            @endif
-
-                                            <a href="{{ route('job-applications.index', ['job_requisition_id' => $req->id]) }}" class="btn btn-sm btn-outline-secondary" title="View Applications">
-                                                <i class="bi bi-people-fill"></i>
+                                          
+                                            <a href="{{ route('job-applications.index', ['job_requisition_id' => $req->id]) }}" 
+                                            class="btn btn-sm btn-outline-secondary rounded" title="View Applications">
+                                                <i class="bi bi-people-fill me-1"></i> Applications
                                             </a>
                                         </div>
 
                                     @else
-                                        {{-- Applicants only see apply button if approved, active, and not filled --}}
+                                        {{-- Applicants --}}
                                         @if($req->approval_status === 'approved' && $req->job_status === 'active' && !$isFilled)
-                                            <a href="{{ route('job-applications.create', ['job_requisition_id' => $req->id]) }}" class="btn btn-sm btn-primary" title="Apply Now">
-                                                <i class="bi bi-send"></i> Apply
+                                            <a href="{{ route('job-applications.create', ['job_requisition_id' => $req->id]) }}" 
+                                            class="btn btn-sm btn-primary rounded" title="Apply Now">
+                                                <i class="bi bi-send me-1"></i> Apply Now
                                             </a>
                                         @else
                                             <span class="text-muted small">
@@ -232,6 +220,7 @@
                                         @endif
                                     @endif
                                 </td>
+
                             </tr>
                         @endforeach
                     </tbody>

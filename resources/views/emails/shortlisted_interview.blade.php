@@ -17,6 +17,6 @@
 
     <p>Please make necessary preparations and ensure you are available.</p>
 
-    <p>Thank you,<br>{{ config('app.name') }}</p>
+    <p>Thank you,<br>CBS Recruitment</p>
 </body>
 </html>

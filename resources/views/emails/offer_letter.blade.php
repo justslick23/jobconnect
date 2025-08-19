@@ -18,6 +18,6 @@
     <p>If you have any questions or need further information, feel free to reach out.</p>
 
     <p>Best regards,<br>
-    {{ config('app.name') }} Recruitment Team</p>
+    CBS Recruitment</p>
 </body>
 </html>

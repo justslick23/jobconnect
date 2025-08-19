@@ -17,7 +17,7 @@
         <p>Wishing you all the best in your career journey.</p>
 
         <p style="margin-top: 30px;">Kind regards,<br>
-        <strong>HR Team</strong></p>
+        <strong>CBS Recruitment</strong></p>
     </div>
 </body>
 </html>
