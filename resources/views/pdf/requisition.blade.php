@@ -198,7 +198,7 @@
         @if($jobRequisition->application_deadline)
         <tr>
             <th>Application Deadline</th>
-            <td>{{ $jobRequisition->application_deadline->format('M j, Y') }}</td>
+            <td>{{ $jobRequisition->application_deadline->format('M j, Y H:i') }}</td>
         </tr>
         @endif
     </table>
