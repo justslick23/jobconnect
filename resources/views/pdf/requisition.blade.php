@@ -28,9 +28,18 @@
             align-items: center;
         }
 
-        .company-logo img {
-            max-height: 40px;
-        }
+        .company-logo {
+    text-align: center; /* center the image */
+    margin-bottom: 10px;
+}
+
+.company-logo img {
+    width: 150px;
+    height: 150px;
+    object-fit: cover; /* ensures square without distortion */
+    display: inline-block;
+}
+
 
         .job-info h1 {
             font-size: 18pt;
@@ -120,9 +129,10 @@
 <body>
     <!-- Header -->
     <div class="pdf-header">
-        <div class="company-logo" style="text-align: center;">
-            <img src="{{ public_path('assets/img/logo-1.png') }}" alt="Company Logo" width="150" height="150" style="object-fit: cover; border-radius: 4px;">
+        <div class="company-logo">
+            <img src="{{ public_path('assets/img/logo-1.png') }}" alt="Company Logo">
         </div>
+        
         
         
         <div class="job-info">
