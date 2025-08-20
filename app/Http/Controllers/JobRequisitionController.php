@@ -69,6 +69,86 @@ class JobRequisitionController extends Controller
     
         return $pdf->download(Str::slug($jobRequisition->title).'-details.pdf');
     }
+
+
+    public function edit(JobRequisition $jobRequisition)
+{
+    // Check authorization (optional - adjust based on your authorization logic)
+    // $this->authorize('update', $jobRequisition);
+
+    // Get all departments for the dropdown
+    $departments = Department::orderBy('name')->get();
+
+    // Get all skills for the multi-select
+    $skills = Skill::orderBy('name')->get();
+
+    // Load the job requisition with its relationships
+    $jobRequisition->load(['department', 'skills']);
+
+    return view('job_requisitions.edit', compact('jobRequisition', 'departments', 'skills'));
+}
+
+/**
+ * Update the specified job requisition in storage.
+ */
+public function update(Request $request, JobRequisition $jobRequisition)
+{
+    // Validate the request data
+    $validatedData = $request->validate([
+        'title' => 'required|string|max:255',
+        'department_id' => 'required|exists:departments,id',
+        'vacancies' => 'required|integer|min:1',
+        'location' => 'nullable|string|max:255',
+        'description' => 'nullable|string',
+        'requirements' => 'nullable|string',
+        'employment_type' => 'required|in:full-time,part-time,contract,temporary',
+        'application_deadline' => 'nullable|date|after:now',
+        'min_experience' => 'required|integer|min:0',
+        'education_level' => 'required|string|max:255',
+        'required_skills' => 'required|array|min:1',
+        'required_skills.*' => 'exists:skills,id',
+        'area_of_study' => 'required|array|min:1',
+        'area_of_study.*' => 'string|max:255',
+    ]);
+
+    try {
+        // Convert datetime-local format to Carbon instance
+        if ($validatedData['application_deadline']) {
+            $validatedData['application_deadline'] = Carbon::parse($validatedData['application_deadline']);
+        }
+
+        // Handle area_of_study - store as JSON
+        $validatedData['area_of_study'] = json_encode($validatedData['area_of_study']);
+
+        // Update the job requisition
+        $jobRequisition->update($validatedData);
+
+        // Sync the skills relationship
+        $jobRequisition->skills()->sync($validatedData['required_skills']);
+
+        // Log the update activity
+        activity()
+            ->performedOn($jobRequisition)
+            ->causedBy(auth()->user())
+            ->withProperties([
+                'old_attributes' => $jobRequisition->getOriginal(),
+                'new_attributes' => $jobRequisition->fresh()->toArray()
+            ])
+            ->log('Job requisition updated');
+
+        return redirect()
+            ->route('job-requisitions.show', $jobRequisition)
+            ->with('success', 'Job requisition updated successfully!');
+
+    } catch (\Exception $e) {
+        \Log::error('Job Requisition Update Error: ' . $e->getMessage());
+        
+        return redirect()
+            ->back()
+            ->withInput()
+            ->with('error', 'There was an error updating the job requisition. Please try again.');
+    }
+}
     
 
     /**
@@ -146,30 +226,9 @@ class JobRequisitionController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(JobRequisition $jobRequisition)
-    {
-        return view('job_requisitions.edit', compact('jobRequisition'));
-    }
+  
 
-    public function update(Request $request, JobRequisition $jobRequisition)
-    {
-        $this->authorize('update', $jobRequisition);
-
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'requirements' => 'nullable|string',
-            'vacancies' => 'required|integer|min:1',
-            'location' => 'nullable|string',
-            'employment_type' => 'required|in:full-time,part-time,contract,temporary',
-            'application_deadline' => 'nullable|date',
-            'department_id' => 'required|exists:departments,id',
-        ]);
-
-        $jobRequisition->update($validated);
-
-        return redirect()->route('job-requisitions.index')->with('success', 'Job Requisition Updated.');
-    }
+   
 
     /**
      * Remove the specified resource from storage.

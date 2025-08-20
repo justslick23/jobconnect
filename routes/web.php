@@ -30,8 +30,8 @@ Route::get('/jobs/create', [JobRequisitionController::class, 'create'])->name('j
 Route::post('/jobs', [JobRequisitionController::class, 'store'])->name('job-requisitions.store');
 Route::get('/jobs/{slugUuid}', [JobRequisitionController::class, 'show'])
     ->name('job-requisitions.show');
-Route::get('/jobs/{jobRequisition}/edit', [JobRequisitionController::class, 'edit'])->name('job-requisitions.edit');
-Route::put('/jobs/{jobRequisition}', [JobRequisitionController::class, 'update'])->name('job-requisitions.update');
+    Route::get('/{jobRequisition}/edit', [JobRequisitionController::class, 'edit'])->name('job-requisitions.edit');
+    Route::put('/{jobRequisition}', [JobRequisitionController::class, 'update'])->name('job-requisitions.update');
 Route::delete('/jobs/{jobRequisition}', [JobRequisitionController::class, 'destroy'])->name('job-requisitions.destroy');
 
 Route::get('job-requisitions/{id}/download-pdf', [JobRequisitionController::class, 'downloadPdf'])

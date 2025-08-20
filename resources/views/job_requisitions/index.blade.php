@@ -186,21 +186,22 @@
                                 <td>{{ $req->created_at->format('Y-m-d') }}</td>
                                 <td class="text-center">
                                     @if(!auth()->user()->isApplicant())
-                                        <div class="btn-group" role="group">
-                                            <a href="{{ route('job-requisitions.show', $req->slug_uuid) }}" 
-                                                class="btn btn-sm btn-outline-primary rounded" title="View">
-                                                 <i class="bi bi-eye me-1"></i> View
-                                             </a>
-                                             
-                                             
-
-                                          
-                                            <a href="{{ route('job-applications.index', ['job_requisition_id' => $req->id]) }}" 
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ route('job-requisitions.show', $req->slug_uuid) }}" 
+                                            class="btn btn-sm btn-outline-primary rounded" title="View">
+                                            <i class="bi bi-eye me-1"></i> View
+                                        </a>
+                                
+                                        <a href="{{ route('job-requisitions.edit', $req->id) }}" 
+                                            class="btn btn-sm btn-outline-warning rounded" title="Edit">
+                                            <i class="bi bi-pencil me-1"></i> Edit
+                                        </a>
+                                
+                                        <a href="{{ route('job-applications.index', ['job_requisition_id' => $req->id]) }}" 
                                             class="btn btn-sm btn-outline-secondary rounded" title="View Applications">
-                                                <i class="bi bi-people-fill me-1"></i> Applications
-                                            </a>
-                                        </div>
-
+                                            <i class="bi bi-people-fill me-1"></i> Applications
+                                        </a>
+                                    </div>
                                     @else
                                         {{-- Applicants --}}
                                         @if($req->approval_status === 'approved' && $req->job_status === 'active' && !$isFilled)
