@@ -1,5 +1,7 @@
 <?php
 
+Log::info('API routes file loaded');
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\JobRequisitionController;
@@ -15,14 +17,10 @@ use App\Http\Controllers\Api\JobRequisitionController;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
-
-
 Route::prefix('job-requisitions')->group(function () {
     Route::get('/', [JobRequisitionController::class, 'index']);
     Route::get('/departments', [JobRequisitionController::class, 'departments']);
     Route::get('/statistics', [JobRequisitionController::class, 'statistics']);
     Route::get('/{slugUuid}', [JobRequisitionController::class, 'show']);
 });
+Route::get('/test', function() { return 'Test'; });

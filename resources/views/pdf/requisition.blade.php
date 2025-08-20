@@ -6,21 +6,25 @@
     <style>
         /* General Styles */
         body {
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 11px;
-            line-height: 1.6;
+            line-height: 1.5;
             color: #333;
-            margin: 25px;
+            margin: 0;
+            padding: 20mm;
+            background: #fff;
+            -webkit-print-color-adjust: exact;
+            color-adjust: exact;
         }
 
         /* Company Logo */
         .page-logo {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
         }
 
         .page-logo img {
-            max-height: 80px;
+            max-height: 70px;
             object-fit: contain;
         }
 
@@ -29,9 +33,9 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #0056b3;
-            padding-bottom: 12px;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
         }
 
         .header-left {
@@ -39,16 +43,17 @@
         }
 
         .header-left h1 {
-            font-size: 22px;
-            font-weight: 400;
-            margin: 0 0 5px 0;
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0 0 8px 0;
             color: #1a1a1a;
+            line-height: 1.3;
         }
 
         .header-left p {
-            margin: 2px 0;
+            margin: 3px 0;
             font-size: 12px;
-            color: #555;
+            color: #666;
         }
 
         .qr-code {
@@ -57,28 +62,28 @@
         }
 
         .qr-code img {
-            border: 1px solid #ddd;
-            padding: 5px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
         }
 
         .qr-code p {
-            font-size: 9px;
-            margin-top: 5px;
-            color: #777;
+            font-size: 10px;
+            margin-top: 8px;
+            color: #666;
+            font-weight: 500;
         }
 
         /* Section Titles */
         .section-title {
-            font-size: 14px;
-            font-weight: bold;
-            color: #0056b3;
-            margin-top: 25px;
-            padding-bottom: 5px;
-            border-bottom: 1px solid #eee;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin: 30px 0 15px 0;
         }
 
         .content {
-            margin: 10px 0 15px 0;
+            margin: 0 0 20px 0;
+            color: #444;
         }
 
         /* Tables */
@@ -86,34 +91,113 @@
             width: 100%;
             border-collapse: collapse;
             margin: 15px 0;
+            background: #fff;
+            page-break-inside: avoid;
         }
 
         th, td {
-            padding: 8px 10px;
+            padding: 10px 12px;
             text-align: left;
-            border-bottom: 1px solid #ddd;
+            border: 1px solid #ddd;
+            vertical-align: top;
         }
 
         th {
-            background-color: #f8f9fa;
+            background-color: #f8f8f8;
             width: 25%;
             font-weight: 600;
-            color: #555;
+            color: #333;
+            font-size: 11px;
         }
 
-        tr:last-child td, tr:last-child th {
-            border-bottom: none;
+        td {
+            font-size: 11px;
+            color: #333;
         }
 
-        /* Badges for Skills and Areas of Study */
+        /* Education Level Section */
+        .education-level {
+            background: #f8f8f8;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            page-break-inside: avoid;
+        }
+
+        .education-level strong {
+            color: #333;
+            font-weight: 600;
+        }
+
+        /* Badges */
         .badge {
             display: inline-block;
-            background-color: #e9ecef;
-            color: #495057;
+            background-color: #f0f0f0;
+            color: #333;
             padding: 4px 8px;
-            border-radius: 4px;
-            margin: 3px 3px 3px 0;
+            border: 1px solid #ccc;
+            margin: 2px 2px 2px 0;
             font-size: 10px;
+            font-weight: normal;
+        }
+
+        /* Section Management */
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin: 20px 0 10px 0;
+            page-break-after: avoid;
+        }
+
+        .content {
+            margin: 0 0 15px 0;
+            color: #444;
+            page-break-inside: avoid;
+            orphans: 3;
+            widows: 3;
+        }
+
+        /* PDF Page Control */
+        .page-break-before {
+            page-break-before: always;
+        }
+
+        .page-break-after {
+            page-break-after: always;
+        }
+
+        .no-break {
+            page-break-inside: avoid;
+        }
+        @media print {
+            body {
+                margin: 20px;
+            }
+            
+            table {
+                background: white;
+            }
+            
+            th {
+                background-color: #f8f8f8;
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+            }
+            
+            .header-left {
+                max-width: 100%;
+                margin-bottom: 20px;
+            }
+            
+            .qr-code {
+                align-self: center;
+            }
         }
     </style>
 </head>
@@ -137,6 +221,7 @@
     </div>
 
     <!-- Key Details Table -->
+    <div class="no-break">
     <table>
         <tr>
             <th>Positions</th>
@@ -161,6 +246,7 @@
         </tr>
         @endif
     </table>
+    </div>
 
     <!-- About This Role -->
     @if($jobRequisition->description)
@@ -172,6 +258,14 @@
     @if($jobRequisition->requirements)
     <div class="section-title">Requirements</div>
     <div class="content">{!! $jobRequisition->requirements !!}</div>
+    @endif
+
+    <!-- Education Level -->
+    @if($jobRequisition->education_level)
+    <div class="section-title">Education Level</div>
+    <div class="education-level">
+        <strong>Required:</strong> {{ $jobRequisition->education_level }}
+    </div>
     @endif
 
     <!-- Skills -->
