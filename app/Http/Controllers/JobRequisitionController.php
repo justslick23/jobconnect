@@ -194,29 +194,36 @@ class JobRequisitionController extends Controller
             'required_skills.*' => 'exists:skills,id',
             'area_of_study' => 'required|array|min:1',
             'area_of_study.*' => 'string|max:255',
-            'job_status' => 'required|in:active,closed',
-
+            'job_status' => 'nullable|in:active,inactive,closed', // Made nullable and added inactive
         ]);
-
+    
         try {
             // Convert datetime-local format to Carbon instance
             if ($validatedData['application_deadline']) {
                 $validatedData['application_deadline'] = Carbon::parse($validatedData['application_deadline']);
             }
-
-            // Handle area_of_study - store as JSON
-            $validatedData['area_of_study'] = json_encode($validatedData['area_of_study']);
-
-            // Update the job requisition
+    
+            // Remove area_of_study from validated data as we'll handle it separately
+            $areaOfStudy = $validatedData['area_of_study'];
+            unset($validatedData['area_of_study']);
+    
+            // Update the job requisition (without area_of_study)
             $jobRequisition->update($validatedData);
-
+    
+            // Update areas of study separately - use the same field name as in store method
+            $jobRequisition->update([
+                'required_areas_of_study' => $areaOfStudy, // Keep as array if your model casts it
+                // OR if you want to store as JSON consistently:
+                // 'required_areas_of_study' => json_encode($areaOfStudy),
+            ]);
+    
             // Sync the skills relationship
             $jobRequisition->skills()->sync($validatedData['required_skills']);
-
+    
             return redirect()
-                ->route('job-requisitions.index', $jobRequisition)
+                ->route('job-requisitions.index')
                 ->with('success', 'Job requisition updated successfully!');
-
+    
         } catch (\Exception $e) {
             Log::error('Job Requisition Update Error: ' . $e->getMessage());
             

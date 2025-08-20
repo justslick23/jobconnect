@@ -266,9 +266,9 @@
                                                     'Other'
                                                 ];
                                                 
-                                                $selectedAreas = old('area_of_study', is_array($jobRequisition->area_of_study) 
-                                                    ? $jobRequisition->area_of_study 
-                                                    : json_decode($jobRequisition->area_of_study, true) ?? []);
+                                                $selectedAreas = old('area_of_study', is_array($jobRequisition->required_areas_of_study) 
+                                                    ? $jobRequisition->required_areas_of_study 
+                                                    : json_decode($jobRequisition->required_areas_of_study, true) ?? []);
                                             @endphp
                                             <option value="">Choose Area of Study</option>
                                             @foreach($areasOfStudy as $area)
