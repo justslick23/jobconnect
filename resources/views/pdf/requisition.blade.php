@@ -115,7 +115,7 @@
     <!-- Header -->
     <div class="pdf-header">
         <div class="company-logo">
-            <img src="{{ asset('assets/img/CBS logo.jpg') }}" alt="Company Logo">
+            <img src="{{ public_path('assets/img/cbs-logo.jpg') }}" alt="Company Logo" width="120">
         </div>
         <div class="job-info">
             <h1>{{ $jobRequisition->title }}</h1>
@@ -124,11 +124,11 @@
                 <strong>Ref:</strong> {{ $jobRequisition->reference_number ?? 'N/A' }}
             </div>
         </div>
-        <div class="qr-code">
-            <img src="{{ $qrCodeUrl }}" alt="QR Code"><br>
+        <div class="qr-code" style="text-align: right;">
+            <img src="{{ $qrCodeUrl }}" alt="QR Code" width="100"><br>
             <small>Scan to Apply</small>
         </div>
-    </div>
+        
 
     <!-- Key Details -->
     <h2 class="section-title">Position Information</h2>
