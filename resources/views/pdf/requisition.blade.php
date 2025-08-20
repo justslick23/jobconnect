@@ -20,40 +20,49 @@
 
         /* Header */
         .pdf-header {
-            border-bottom: 2px solid #000;
+            border-bottom: 2px solid #3498db;
             padding-bottom: 8mm;
             margin-bottom: 12mm;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: #eaf2fb;
+            border-radius: 5px;
+            padding: 10px;
         }
 
         .company-logo {
-    text-align: center; /* center the image */
-    margin-bottom: 10px;
-}
+            text-align: center;
+            margin-bottom: 10px;
+            flex: 0 0 150px;
+        }
 
-.company-logo img {
-    width: 150px;
-    height: 150px;
-    object-fit: cover; /* ensures square without distortion */
-    display: inline-block;
-}
-
+        .company-logo img {
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+            display: inline-block;
+        }
 
         .job-info h1 {
             font-size: 18pt;
             margin: 0 0 3mm 0;
+            color: #2c3e50;
         }
 
         .job-meta {
             font-size: 10pt;
-            color: #444;
+            color: #2c3e50;
+        }
+
+        .qr-code {
+            text-align: right;
+            flex: 0 0 150px;
         }
 
         .qr-code img {
-            width: 70px;
-            height: 70px;
+            width: 150px;
+            height: 150px;
         }
 
         /* Section Titles */
@@ -61,8 +70,9 @@
             font-size: 13pt;
             font-weight: bold;
             margin: 15px 0 8px 0;
-            border-bottom: 1px solid #000;
+            border-bottom: 2px solid #3498db;
             padding-bottom: 3px;
+            color: #2c3e50;
         }
 
         /* Details Table */
@@ -81,9 +91,18 @@
         }
 
         .details-table th {
-            background: #f2f2f2;
+            background: #d9edf7;
             text-align: left;
             width: 30%;
+            color: #2c3e50;
+        }
+
+        .details-table tr:nth-child(even) {
+            background: #f5f9fc;
+        }
+
+        .details-table td {
+            color: #333;
         }
 
         /* Content */
@@ -103,24 +122,20 @@
 
         .tag {
             display: inline-block;
-            border: 1px solid #ccc;
+            border: 1px solid #3498db;
             padding: 3px 8px;
             margin: 2px;
             font-size: 9pt;
             border-radius: 4px;
-            background: #f9f9f9;
+            background: #d9edf7;
+            color: #2c3e50;
+            font-weight: 500;
         }
-
-        .qr-code img {
-    width: 150px;
-    height: 150px;
-}
-
 
         /* Print overrides */
         @media print {
             .pdf-header {
-                border-bottom: 1px solid #000;
+                border-bottom: 1px solid #3498db;
                 margin-bottom: 10mm;
             }
         }
@@ -132,9 +147,7 @@
         <div class="company-logo">
             <img src="{{ public_path('assets/img/CBS logo.png') }}" alt="Company Logo">
         </div>
-        
-        
-        
+
         <div class="job-info">
             <h1>{{ $jobRequisition->title }}</h1>
             <div class="job-meta">
@@ -142,10 +155,12 @@
                 <strong>Ref:</strong> {{ $jobRequisition->reference_number ?? 'N/A' }}
             </div>
         </div>
-        <div class="qr-code" style="text-align: left;">
-            <img src="{{ $qrCodeUrl }}" alt="QR Code" width="150"><br>
+
+        <div class="qr-code">
+            <img src="{{ $qrCodeUrl }}" alt="QR Code"><br>
+            <small>Scan to Apply</small>
         </div>
-        
+    </div>
 
     <!-- Key Details -->
     <h2 class="section-title">Position Information</h2>
