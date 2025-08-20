@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-@section('title', 'Apply for ' . $job->title)
+@section('title', 'Apply for ' . $jobRequisition->title)
 
 <div class="page-inner">
     <div class="page-header">
@@ -246,6 +246,52 @@
                                 @endif
                             </div>
                         </div>
+
+                        {{-- Application Source --}}
+<div class="card mb-4">
+    <div class="card-header">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-bullhorn text-primary me-2"></i>
+            <h5 class="mb-0">How did you hear about this job?</h5>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="mb-3">
+            <label for="application_source" class="form-label">Select Source</label>
+            <select name="application_source" id="application_source" class="form-select" required>
+                <option value="">-- Choose an option --</option>
+                <option value="Company Website">Company Website</option>
+                <option value="LinkedIn">LinkedIn</option>
+                <option value="Employee Referral">Employee Referral</option>
+                <option value="Job Boards">Job Boards</option>
+                {{-- Optionally add "Other" --}}
+                <option value="Other">Other</option>
+            </select>
+            <div class="invalid-feedback">Please select how you found out about this job.</div>
+        </div>
+
+        {{-- Optional free-text if "Other" selected --}}
+        <div id="other-source-wrapper" class="mb-3 d-none">
+            <label for="other_source" class="form-label">Please specify</label>
+            <input type="text" name="other_source" id="other_source" class="form-control">
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const sourceSelect = document.getElementById("application_source");
+        const otherWrapper = document.getElementById("other-source-wrapper");
+        sourceSelect.addEventListener("change", function() {
+            if (this.value === "Other") {
+                otherWrapper.classList.remove("d-none");
+            } else {
+                otherWrapper.classList.add("d-none");
+            }
+        });
+    });
+</script>
+
                     </div>
 
                     <div class="col-lg-4">

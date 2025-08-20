@@ -188,6 +188,10 @@
                             </div>
 
                             <!-- Skills Selection -->
+                            <div class="row">
+
+                           
+                            <div class="col-md-6">
                             <div class="form-group">
                                 <label for="required_skills">Required Skills <span class="required-label">*</span></label>
                                 <select name="required_skills[]" 
@@ -206,6 +210,63 @@
                                     <i class="fas fa-info-circle"></i> Hold Ctrl/Cmd to select multiple skills. Type to add new skills.
                                 </small>
                             </div>
+                            </div>
+
+
+                            <div class="col-md-6">
+                                <!-- Area of Study -->
+<div class="form-group">
+    <label for="area_of_study">Area of Study <span class="required-label">*</span></label>
+    <select name="area_of_study[]" id="area_of_study" class="form-control" multiple required>
+        @php
+            $areasOfStudy = [
+                // --- Core IT / Engineering ---
+                'Computer Science','Information Technology','Information Systems',
+                'Software Engineering','Web Development','Mobile App Development',
+                'Artificial Intelligence','Data Science','Machine Learning','Cybersecurity',
+                'Network Engineering','Cloud Computing','Systems Administration',
+                'Database Administration','Electronics Engineering','Electrical Engineering',
+                'Telecommunications Engineering','Mechanical Engineering','Civil Engineering',
+
+                // --- Business / Admin / Finance ---
+                'Business Administration','Finance','Accounting','Economics',
+                'Supply Chain Management','Operations Management','Project Management',
+                'Office Administration','Public Administration','Secretarial Studies',
+
+                // --- HR / Training / Education ---
+                'Human Resources Management','Industrial Psychology','Organizational Development',
+                'Education','Training & Capacity Building','Adult Education','Instructional Design',
+
+                // --- Marketing / Sales ---
+                'Marketing','Digital Marketing','Communications','Public Relations',
+                'Sales','Retail Management','Customer Relationship Management',
+
+                // --- Sciences / General ---
+                'Statistics','Mathematics','Physics','Chemistry','Biology',
+                'Environmental Science','Biotechnology','Healthcare Administration',
+
+                // --- Law / Governance ---
+                'Law','Compliance','Risk Management','Political Science','International Relations',
+
+                // --- Other catch-all ---
+                'Arts & Humanities','Languages','Journalism','Hospitality Management','Tourism',
+                'Other'
+            ];
+        @endphp
+        <option value="">Choose Area of Study</option>
+        @foreach($areasOfStudy as $area)
+            <option value="{{ $area }}" {{ collect(old('area_of_study'))->contains($area) ? 'selected' : '' }}>
+                {{ $area }}
+            </option>
+        @endforeach
+    </select>
+    <small class="form-text text-muted">
+        <i class="fas fa-info-circle"></i> Hold Ctrl/Cmd to select multiple areas. You can also type to add new areas.
+    </small>
+</div>
+
+                                </div>
+                        </div>
 
 
                             <!-- Form Actions -->
@@ -231,6 +292,23 @@
 
 <!-- CKEditor -->
 <script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
+<script>
+    new TomSelect('#area_of_study', {
+        plugins: ['remove_button'],
+        placeholder: "Select or type an area of study...",
+        create: function(input) {
+            return {
+                value: input,
+                text: `Add "${input}"`
+            };
+        },
+        persist: false,
+        duplicates: false,
+        sortField: { field: "text", direction: "asc" },
+        maxItems: 5 // optional
+    });
+</script>
+
 
 <script>
     // Initialize TomSelect for skills

@@ -34,7 +34,9 @@ Route::get('/jobs/{jobRequisition}/edit', [JobRequisitionController::class, 'edi
 Route::put('/jobs/{jobRequisition}', [JobRequisitionController::class, 'update'])->name('job-requisitions.update');
 Route::delete('/jobs/{jobRequisition}', [JobRequisitionController::class, 'destroy'])->name('job-requisitions.destroy');
 
-    
+Route::get('job-requisitions/{id}/download-pdf', [JobRequisitionController::class, 'downloadPdf'])
+->name('job-requisitions.download-pdf');
+
     Route::post('/job/{jobRequisition}/approve', [JobRequisitionController::class, 'approve'])->name('job-requisitions.approve');
     Route::post('/job/{jobRequisition}/reject', [JobRequisitionController::class, 'reject'])->name('job-requisitions.reject');
 

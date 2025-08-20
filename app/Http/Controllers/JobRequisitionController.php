@@ -4,11 +4,14 @@ namespace App\Http\Controllers;
 use App\Models\JobRequisition;
 use App\Models\Skill;
 use App\Models\Department;
-
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd; // or PngImageBackEnd if available
+use BaconQrCode\Writer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
-
+use Barryvdh\DomPDF\Facade\Pdf;
 class JobRequisitionController extends Controller
 {
     /**
@@ -40,6 +43,33 @@ class JobRequisitionController extends Controller
         return view('job_requisitions.create', compact('departments', 'skills'));
 
     }
+    public function downloadPdf($id)
+    {
+        $jobRequisition = JobRequisition::with('department','skills')->findOrFail($id);
+    
+        $renderer = new ImageRenderer(
+            new RendererStyle(100),
+            new SvgImageBackEnd()
+        );
+    
+        $writer = new Writer($renderer);
+    
+        // Generate SVG string
+        $svg = $writer->writeString(route('job-requisitions.show', $jobRequisition->slug_uuid));
+    
+        // Convert SVG string into a data URI (for <img src="...">)
+        $qrCodeUrl = 'data:image/svg+xml;base64,' . base64_encode($svg);
+    
+        // Pass requisition + QR code URL to view
+        $pdf = Pdf::loadView('pdf.requisition', [
+                    'jobRequisition' => $jobRequisition,
+                    'qrCodeUrl' => $qrCodeUrl
+                ])
+                ->setPaper('a4', 'portrait');
+    
+        return $pdf->download(Str::slug($jobRequisition->title).'-details.pdf');
+    }
+    
 
     /**
      * Store a newly created resource in storage.
@@ -59,6 +89,8 @@ class JobRequisitionController extends Controller
             'education_level' => 'required|string|max:50',
             'required_skills' => 'required|array|min:1',
             'required_skills.*' => 'integer|exists:skills,id',
+            'area_of_study' => 'required|array|min:1',
+            'area_of_study.*' => 'string|max:100',
         ]);
     
         $job = new JobRequisition($validated);
@@ -78,6 +110,9 @@ class JobRequisitionController extends Controller
     
         // Attach skills via pivot
         $job->skills()->sync($request->required_skills);
+        $job->update([
+            'required_areas_of_study' => $request->area_of_study, 
+        ]);
 
         $users = \App\Models\User::all()->filter(function ($user) {
             return $user->isApplicant();

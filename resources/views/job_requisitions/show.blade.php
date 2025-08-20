@@ -42,6 +42,12 @@
                             <i class="fas fa-paper-plane me-2"></i>Apply Now
                         </a>
                         @endif
+
+                        <a href="{{ route('job-requisitions.download-pdf', $jobRequisition->id) }}" 
+                            class="btn btn-outline-primary w-100 mb-3">
+                             <i class="fas fa-download me-2"></i>Download Job Details (PDF)
+                         </a>
+                         
                     </div>
                 </div>
             </div>
@@ -191,6 +197,22 @@
                                 <span class="fw-semibold">{{ $jobRequisition->education_level ?? 'Not specified' }}</span>
                             </div>
                         </div>
+                        
+                        <!-- Areas of Study Section -->
+                        @if($jobRequisition->required_areas_of_study && !empty($jobRequisition->required_areas_of_study))
+                        <div class="row mb-3">
+                            <div class="col-4">
+                                <small class="text-muted">Areas of Study</small>
+                            </div>
+                            <div class="col-8">
+                                @foreach($jobRequisition->required_areas_of_study as $area)
+                                    <span class="badge bg-light text-dark me-1 mb-1">
+                                        {{ is_array($area) ? ($area['name'] ?? $area['title'] ?? 'Unknown') : $area }}
+                                    </span>
+                                @endforeach
+                            </div>
+                        </div>
+                        @endif
                         
                         <div class="row mb-3">
                             <div class="col-4">

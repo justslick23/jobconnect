@@ -45,6 +45,7 @@ class ProfileController extends Controller
         $references = $user->references()->get();
         $qualifications = $user->qualifications()->orderBy('issued_date', 'desc')->get();
         $attachments = $user->attachments()->get()->groupBy('type');
+        session(['return_to_application' => url()->current()]);
 
         return view('applicant.profile_form', compact(
             'profile', 'skills', 'education', 'experience', 'references', 'qualifications', 'attachments', 'user'
@@ -103,12 +104,14 @@ class ProfileController extends Controller
             'references.*.phone' => 'nullable|string|max:20',
     
             // Qualifications (optional)
+           // Qualifications (all optional)
             'qualifications' => 'nullable|array',
-            'qualifications.*.title' => 'required_with:qualifications|string|max:255',
+            'qualifications.*.title' => 'nullable|string|max:255',
             'qualifications.*.type' => 'nullable|string|max:255',
-            'qualifications.*.institution' => 'required_with:qualifications|string|max:255',
+            'qualifications.*.institution' => 'nullable|string|max:255',
             'qualifications.*.issued_date' => 'nullable|date',
             'qualifications.*.notes' => 'nullable|string',
+
     
             // Documents
             'resume'          => 'nullable|file|mimes:pdf,doc,docx|max:5120',

@@ -204,10 +204,12 @@
                                     @else
                                         {{-- Applicants --}}
                                         @if($req->approval_status === 'approved' && $req->job_status === 'active' && !$isFilled)
-                                            <a href="{{ route('job-applications.create', ['job_requisition_id' => $req->id]) }}" 
+                                            <a href="{{ route('job-applications.create', ['job_requisition' => $req->id]) }}" 
                                             class="btn btn-sm btn-primary rounded" title="Apply Now">
                                                 <i class="bi bi-send me-1"></i> Apply Now
                                             </a>
+
+                               
                                         @else
                                             <span class="text-muted small">
                                                 @if($isFilled)

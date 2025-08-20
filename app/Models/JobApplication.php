@@ -18,6 +18,7 @@ class JobApplication extends Model
         'submitted_at',
         'notes',
         'uuid',
+        'application_source',
 
     ];
 

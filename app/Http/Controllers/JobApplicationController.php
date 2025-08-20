@@ -346,6 +346,8 @@ class JobApplicationController extends Controller
     {
         $request->validate([
             'job_requisition_id' => 'required|exists:job_requisitions,id',
+            'application_source' => 'required|string|max:255',
+            'other_source' => 'nullable|string|max:255',
         ]);
     
         $user = Auth::user();
@@ -359,6 +361,9 @@ class JobApplicationController extends Controller
         $application = new JobApplication();
         $application->user_id = $user->id;
         $application->job_requisition_id = $request->job_requisition_id;
+        $application->application_source = $request->application_source === "Other"
+    ? $request->other_source
+    : $request->application_source;
 
         // You can also attach or serialize other profile info if desired, but usually you link to user only.
     
@@ -585,7 +590,7 @@ public function exportByJob($jobId)
             $sheet->setCellValue('I' . $row, $totalYears);
 
             // Education (all degrees)
-            $educationString = $application->user->profile->education
+            $educationString = $application->user->education
                 ->pluck('degree')
                 ->filter()
                 ->implode(', ');

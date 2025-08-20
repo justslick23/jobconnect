@@ -104,39 +104,44 @@
 
                 <div class="jobs-container">
                     @foreach($jobs as $job)
-                        <div class="job-item" data-department="{{ $job->department->name }}">
-                            <div class="job-content">
-                                <div class="job-meta">
-                                    <span class="job-department">{{ $job->department->name }}</span>
-                                    <span class="job-type {{ strtolower($job->employment_type) }}">
-                                        {{ ucfirst($job->employment_type) }}
-                                    </span>
+                        <div class="job-item mb-3" data-department="{{ $job->department->name }}">
+                            <div class="job-content d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h3 class="job-title mb-1">{{ $job->title }}</h3>
+                                    <div class="job-meta text-muted small">
+                                        <span class="job-department">{{ $job->department->name }}</span> &bullet; 
+                                        <span class="job-type {{ strtolower($job->employment_type) }}">{{ ucfirst($job->employment_type) }}</span>
+                                    </div>
                                 </div>
-                                
-                                <h3 class="job-title">{{ $job->title }}</h3>
-                                
-                                <div class="job-details">
-                                    <div class="job-detail">
-                                        <i class="fas fa-calendar-alt"></i>
+                                <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#job-{{ $job->id }}">
+                                    <i class="fas fa-chevron-down"></i> Details
+                                </button>
+                            </div>
+                
+                            <div class="collapse mt-2" id="job-{{ $job->id }}">
+                                <div class="job-details p-3 border rounded">
+                                    <div class="job-detail mb-2">
+                                        <i class="fas fa-calendar-alt me-1"></i>
                                         <span>{{ $job->application_deadline ? $job->application_deadline->format('M j, Y') : 'Open Application' }}</span>
                                     </div>
-                                    <div class="job-detail">
-                                        <i class="fas fa-users"></i>
+                                    <div class="job-detail mb-2">
+                                        <i class="fas fa-users me-1"></i>
                                         <span>{{ $job->vacancies }} {{ $job->vacancies == 1 ? 'position' : 'positions' }}</span>
                                     </div>
+                                    <div class="job-detail mb-2">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        <span>{!! $job->description !!}</span>
+                                    </div>
+                                    
+                                    <a href="{{ route('job-requisitions.show', $job->slug_uuid) }}" class="btn btn-primary btn-sm mt-2">
+                                        Apply Now <i class="fas fa-arrow-right ms-1"></i>
+                                    </a>
                                 </div>
-                            </div>
-                            
-                            <div class="job-action">
-                                <a href="{{ route('job-requisitions.show', $job->slug_uuid) }}" class="job-apply-btn">
-                                    <span>Apply Now</span>
-                                    <i class="fas fa-arrow-right"></i>
-                                </a>
-                                
                             </div>
                         </div>
                     @endforeach
                 </div>
+                
             @else
                 <div class="no-openings">
                     <div class="no-openings-icon">
@@ -225,10 +230,7 @@
                         </a>
                     @endguest
                     
-                    <a href="mailto:careers@cbs.com" class="btn btn-outline">
-                        <span>Contact HR</span>
-                        <i class="fas fa-envelope"></i>
-                    </a>
+                
                 </div>
             </div>
         </div>

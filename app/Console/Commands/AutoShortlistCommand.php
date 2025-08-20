@@ -159,8 +159,9 @@ class AutoShortlistCommand extends Command
 
     protected function calculateApplicationScores($user, array $jobSkills, int $totalJobSkills, float $minExperience, JobRequisition $requisition, ShortlistingSetting $settings): array
     {
+        // Enhanced skills matching with fuzzy logic
         $userSkills = $user->skills ? $user->skills->pluck('name')->toArray() : [];
-        $matchedSkillsCount = count(array_intersect($jobSkills, $userSkills));
+        $matchedSkillsCount = $this->countMatchedSkills($jobSkills, $userSkills);
         $skillsFraction = $totalJobSkills > 0 ? $matchedSkillsCount / $totalJobSkills : 1;
         $skillsScore = $skillsFraction * ($settings->skills_weight ?? 0);
 
@@ -170,7 +171,8 @@ class AutoShortlistCommand extends Command
         $experienceScore = $experienceFraction * ($settings->experience_weight ?? 0);
 
         $requiredEducationLevel = $requisition->required_education_level ?? null;
-        $educationFraction = $this->calculateEducationScore($user, $requiredEducationLevel) / 100;
+        $requiredAreasOfStudy = $requisition->required_areas_of_study ?? [];
+        $educationFraction = $this->calculateEducationScore($user, $requiredEducationLevel, $requiredAreasOfStudy) / 100;
         $educationScore = $educationFraction * ($settings->education_weight ?? 0);
 
         $hasQualification = $user->qualifications && $user->qualifications->isNotEmpty();
@@ -188,6 +190,91 @@ class AutoShortlistCommand extends Command
             'qualification_bonus' => round($qualificationBonusScore, 2),
             'total_score' => round($totalScore, 2),
         ];
+    }
+
+    protected function countMatchedSkills(array $jobSkills, array $userSkills): float
+    {
+        $matchedCount = 0;
+
+        foreach ($jobSkills as $jobSkill) {
+            if ($this->skillMatches($jobSkill, $userSkills)) {
+                $matchedCount++;
+            }
+        }
+
+        return $matchedCount;
+    }
+
+    protected function skillMatches(string $jobSkill, array $userSkills): bool
+    {
+        $jobSkillNormalized = $this->normalizeSkill($jobSkill);
+        
+        foreach ($userSkills as $userSkill) {
+            $userSkillNormalized = $this->normalizeSkill($userSkill);
+            
+            // Exact match after normalization
+            if ($jobSkillNormalized === $userSkillNormalized) {
+                return true;
+            }
+            
+            // Contains match (either direction)
+            if (strpos($userSkillNormalized, $jobSkillNormalized) !== false || 
+                strpos($jobSkillNormalized, $userSkillNormalized) !== false) {
+                return true;
+            }
+            
+            // Check for common skill variations
+            if ($this->areSkillVariations($jobSkillNormalized, $userSkillNormalized)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    protected function normalizeSkill(string $skill): string
+    {
+        // Remove common variations and normalize
+        $skill = strtolower(trim($skill));
+        
+        // Remove common words/suffixes
+        $removeWords = ['.js', '.net', ' programming', ' development', ' developer', ' language', ' framework', ' technology'];
+        $skill = str_replace($removeWords, '', $skill);
+        
+        // Remove special characters and extra spaces
+        $skill = preg_replace('/[^\w\s]/', ' ', $skill);
+        $skill = preg_replace('/\s+/', ' ', $skill);
+        
+        return trim($skill);
+    }
+
+    protected function areSkillVariations(string $skill1, string $skill2): bool
+    {
+        // Define common skill variations
+        $variations = [
+            'javascript' => ['js', 'ecmascript', 'javascript'],
+            'python' => ['python', 'python3', 'py'],
+            'csharp' => ['c#', 'csharp', 'c sharp', 'dotnet', '.net'],
+            'nodejs' => ['node.js', 'nodejs', 'node', 'javascript backend'],
+            'reactjs' => ['react.js', 'reactjs', 'react', 'react framework'],
+            'vuejs' => ['vue.js', 'vuejs', 'vue', 'vue framework'],
+            'angular' => ['angular.js', 'angularjs', 'angular', 'angular framework'],
+            'mysql' => ['mysql', 'my sql', 'mysql database'],
+            'postgresql' => ['postgresql', 'postgres', 'postgre sql'],
+            'mongodb' => ['mongodb', 'mongo db', 'mongo'],
+            'photoshop' => ['photoshop', 'adobe photoshop', 'ps'],
+            'illustrator' => ['illustrator', 'adobe illustrator', 'ai'],
+            'html' => ['html', 'html5', 'hypertext markup language'],
+            'css' => ['css', 'css3', 'cascading style sheets'],
+        ];
+        
+        foreach ($variations as $baseSkill => $variantsList) {
+            if ((in_array($skill1, $variantsList) && in_array($skill2, $variantsList))) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     protected function processNonShortlistedApplications(JobRequisition $requisition): int
@@ -219,31 +306,94 @@ class AutoShortlistCommand extends Command
         return $processedCount;
     }
 
-    protected function calculateEducationScore($user, $requiredEducationLevel): float
+    protected function calculateEducationScore($user, $requiredEducationLevel, $requiredAreasOfStudy = []): float 
     {
         if (!$user->education || $user->education->isEmpty()) return 0.0;
         if (!$requiredEducationLevel) return 100.0;
-
+    
         $requiredScore = $this->mapEducationLevelToScore($requiredEducationLevel);
-        $userHighestScore = 0.0;
-
+        $bestScore = 0.0;
+    
         foreach ($user->education as $education) {
             $educationLevel = $education->education_level ?? null;
-            $educationEndDate = $education->end_date ?? null;
             $educationStatus = strtolower($education->status ?? '');
-
+            $fieldOfStudy = $education->field_of_study ?? null;
+            $hasEndDate = !empty($education->end_date);
+    
             if (!$educationLevel) continue;
-
-            $educationScoreRaw = $this->mapEducationLevelToScore($educationLevel);
-            if ($educationStatus !== 'complete' || !$educationEndDate) {
-                $educationScoreRaw *= 0.7;
+    
+            $educationLevelScore = $this->mapEducationLevelToScore($educationLevel);
+            
+            // Three main criteria
+            $meetsLevelRequirement = $educationLevelScore >= $requiredScore;
+            $meetsFieldRequirement = $this->checkFieldOfStudyMatch($fieldOfStudy, $requiredAreasOfStudy);
+            $isComplete = ($educationStatus === 'complete' && $hasEndDate);
+            
+            $currentScore = 0.0;
+            
+            if ($meetsLevelRequirement && $meetsFieldRequirement && $isComplete) {
+                // Perfect match: 100%
+                $currentScore = 100.0;
+                
+            } elseif ($meetsLevelRequirement && $meetsFieldRequirement) {
+                // Right level + right field, but incomplete: 70%
+                $currentScore = 70.0;
+                
+            } elseif ($meetsLevelRequirement && $isComplete) {
+                // Right level + complete, but wrong field: 40%
+                $currentScore = 40.0;
+                
+            } elseif ($meetsFieldRequirement && $isComplete) {
+                // Right field + complete, but level too low: 30%
+                $currentScore = 30.0;
+                
+            } elseif ($meetsLevelRequirement) {
+                // Only right level (wrong field, incomplete): 25%
+                $currentScore = 25.0;
+                
+            } elseif ($meetsFieldRequirement) {
+                // Only right field (level too low, incomplete): 15%
+                $currentScore = 15.0;
+                
+            } elseif ($isComplete) {
+                // Only complete (wrong level, wrong field): 10%
+                $currentScore = 10.0;
+                
+            } else {
+                // None of the criteria met: 0%
+                $currentScore = 0.0;
             }
-
-            $userHighestScore = max($userHighestScore, $educationScoreRaw);
+    
+            $bestScore = max($bestScore, $currentScore);
         }
-
-        if ($requiredScore == 0) return 100.0;
-        return round(min(($userHighestScore / $requiredScore) * 100, 100), 2);
+    
+        return round($bestScore, 2);
+    }
+    
+    protected function checkFieldOfStudyMatch($userFieldOfStudy, $requiredAreasOfStudy): bool
+    {
+        // If no field requirements, consider it a match
+        if (empty($requiredAreasOfStudy)) return true;
+        
+        // If user has no field of study, no match
+        if (empty($userFieldOfStudy)) return false;
+    
+        $userField = strtolower(trim($userFieldOfStudy));
+        
+        foreach ($requiredAreasOfStudy as $requiredArea) {
+            $requiredField = strtolower(trim($requiredArea));
+            
+            // Exact match
+            if ($userField === $requiredField) return true;
+            
+            // Check if either contains the other (handles variations)
+            if (strpos($userField, $requiredField) !== false || 
+                strpos($requiredField, $userField) !== false) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     protected function calculateTotalExperienceYears($user): float

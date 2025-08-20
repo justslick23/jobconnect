@@ -166,9 +166,11 @@
                                                         <button class="btn btn-secondary reset-filters" data-job-id="{{ $req->id }}">
                                                             Reset Filters
                                                         </button>
+                                                        @unless(@auth()->user()->isApplicant())
                                                         <button class="btn btn-success export-btn" data-job-id="{{ $req->id }}">
                                                             <i class="fas fa-download"></i> Export
                                                         </button>
+                                                        @endunless
                                                     </div>
                                                 </div>
                                             </div>

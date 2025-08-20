@@ -286,16 +286,30 @@ class ReportController extends Controller
         return $trends;
     }
 
-    private function getApplicationSources($dateFilter)
+    private function getApplicationSources($dateFilter = null)
     {
-        // Placeholder data - implement based on your source tracking
-        return [
-            ['name' => 'Company Website', 'count' => 89, 'percentage' => 36],
-            ['name' => 'LinkedIn', 'count' => 67, 'percentage' => 27],
-            ['name' => 'Indeed', 'count' => 45, 'percentage' => 18],
-            ['name' => 'Employee Referral', 'count' => 28, 'percentage' => 11],
-            ['name' => 'Job Boards', 'count' => 16, 'percentage' => 8]
-        ];
+        $query = JobApplication::query();
+    
+        // Apply date filter if provided
+        if ($dateFilter) {
+            $query->whereDate('created_at', $dateFilter);
+        }
+    
+        // Get counts grouped by application_source
+        $sources = $query->select('application_source', \DB::raw('COUNT(*) as count'))
+                         ->groupBy('application_source')
+                         ->get();
+    
+        $total = $sources->sum('count');
+    
+        // Map results and calculate percentages
+        return $sources->map(function ($item) use ($total) {
+            return [
+                'name' => $item->application_source,
+                'count' => $item->count,
+                'percentage' => $total ? round(($item->count / $total) * 100) : 0,
+            ];
+        })->values()->all();
     }
 
     private function getRecentApplications($limit = 10)

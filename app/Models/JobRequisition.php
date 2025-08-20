@@ -31,12 +31,15 @@ class JobRequisition extends Model
         'approved_by',
         'approved_at',
         'auto_shortlisting_completed',
-        'auto_shortlisting_completed_at',
+        'required_areas_of_study',
+
     ];
 
+ 
     protected $casts = [
         'application_deadline' => 'datetime',
         'approved_at' => 'datetime',
+        'required_areas_of_study' => 'array',
     ];
 
     // Automatically assign UUID and reference number

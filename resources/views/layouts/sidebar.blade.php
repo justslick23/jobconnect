@@ -60,7 +60,7 @@
               <li class="nav-item {{ request()->is('profile/complete') ? 'active' : '' }}">
                   <a href="{{ route('applicant.profile.edit') }}">
                       <i class="fas fa-user"></i>
-                      <p>Complete Profile</p>
+                      <p>Profile</p>
                   </a>
               </li>
               <li class="nav-item {{ request()->is('interviews*') ? 'active' : '' }}">

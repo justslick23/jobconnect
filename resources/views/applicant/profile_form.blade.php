@@ -6,9 +6,17 @@
     <div class="page-inner">
         <div class="page-header">
             <h3 class="fw-bold mb-3">Complete Your Profile</h3>
-            <p class="text-muted">Please provide information that is relevant to the position you're applying for. Focus on experiences, skills, and qualifications that demonstrate your suitability for the role.</p>
+            <p class="text-muted">
+                Please provide information that is relevant to the position you're applying for. 
+                Focus on experiences, skills, and qualifications that demonstrate your suitability for the role.
+            </p>
+        
+            <a href="{{ url()->previous() }}" class="btn btn-primary mb-3">
+                <i class="fas fa-arrow-left me-1"></i> Back
+            </a>
         </div>
-
+        
+        
         @include('partials.alerts')
 
         <form action="{{ route('applicant.profile.update') }}" method="POST" enctype="multipart/form-data">
@@ -77,7 +85,43 @@
                     'fields' => [
                         'degree' => ['type' => 'text', 'label' => 'Degree', 'required' => true, 'placeholder' => 'e.g., Bachelor of Science'],
                         'education_level' => ['type' => 'select', 'label' => 'Education Level', 'required' => true, 'options' => ['High School', 'Certificate', 'Diploma', 'Associate Degree', 'Bachelor\'s Degree', 'Postgraduate Diploma', 'Master\'s Degree', 'Doctorate (PhD)', 'Other']],
-                        'field_of_study' => ['type' => 'text', 'label' => 'Field of Study', 'required' => true, 'placeholder' => 'e.g., Computer Science'],
+                        'field_of_study' => [
+                            'type' => 'select_with_custom', 
+                            'label' => 'Field of Study', 
+                            'required' => true, 
+                            'options' => [
+                                // --- Core IT / Engineering ---
+                                'Computer Science','Information Technology','Information Systems',
+                                'Software Engineering','Web Development','Mobile App Development',
+                                'Artificial Intelligence','Data Science','Machine Learning','Cybersecurity',
+                                'Network Engineering','Cloud Computing','Systems Administration',
+                                'Database Administration','Electronics Engineering','Electrical Engineering',
+                                'Telecommunications Engineering','Mechanical Engineering','Civil Engineering',
+                                
+                                // --- Business / Admin / Finance ---
+                                'Business Administration','Finance','Accounting','Economics',
+                                'Supply Chain Management','Operations Management','Project Management',
+                                'Office Administration','Public Administration','Secretarial Studies',
+                                
+                                // --- HR / Training / Education ---
+                                'Human Resources Management','Industrial Psychology','Organizational Development',
+                                'Education','Training & Capacity Building','Adult Education','Instructional Design',
+                                
+                                // --- Marketing / Sales ---
+                                'Marketing','Digital Marketing','Communications','Public Relations',
+                                'Sales','Retail Management','Customer Relationship Management',
+                                
+                                // --- Sciences / General ---
+                                'Statistics','Mathematics','Physics','Chemistry','Biology',
+                                'Environmental Science','Biotechnology','Healthcare Administration',
+                                
+                                // --- Law / Governance ---
+                                'Law','Compliance','Risk Management','Political Science','International Relations',
+                                
+                                // --- Other catch-all ---
+                                'Arts & Humanities','Languages','Journalism','Hospitality Management','Tourism'
+                            ]
+                        ],
                         'institution' => ['type' => 'text', 'label' => 'Institution', 'required' => true, 'placeholder' => 'e.g., National University of Lesotho'],
                         'status' => ['type' => 'select', 'label' => 'Status', 'required' => true, 'options' => ['Completed', 'In Progress', 'Paused/Deferred']],
                         'start_date' => ['type' => 'date', 'label' => 'Start Date'],
@@ -159,7 +203,33 @@
                                 <div class="col-md-{{ in_array($fieldConfig['type'], ['textarea']) || $field == 'institution' || $field == 'context' ? '12' : '6' }}">
                                     <div class="form-group">
                                         <label>{{ $fieldConfig['label'] }}{{ isset($fieldConfig['required']) && $fieldConfig['required'] ? ' *' : '' }}</label>
-                                        @if($fieldConfig['type'] == 'select')
+                                        @if($fieldConfig['type'] == 'select_with_custom')
+                                            @php
+                                                $currentValue = isset($item->{$field}) ? $item->{$field} : '';
+                                                $isCustomValue = !empty($currentValue) && !in_array($currentValue, $fieldConfig['options']);
+                                            @endphp
+                                            <select name="{{ $section }}[{{ $index }}][{{ $field }}]" class="form-select field-of-study-select" {{ isset($fieldConfig['required']) && $fieldConfig['required'] ? 'required' : '' }} onchange="toggleCustomFieldOfStudy(this, '{{ $section }}-{{ $index }}')">
+                                                <option value="">-- Select {{ str_replace(' (Optional)', '', $fieldConfig['label']) }} --</option>
+                                                @foreach($fieldConfig['options'] as $option)
+                                                    <option value="{{ $option }}" {{ $currentValue === $option ? 'selected' : '' }}>{{ $option }}</option>
+                                                @endforeach
+                                                <option value="custom" {{ $isCustomValue ? 'selected' : '' }}>Other (Please specify)</option>
+                                            </select>
+                                            
+                                            <!-- Custom input field (hidden by default) -->
+                                            <input type="text" 
+                                                   name="{{ $section }}[{{ $index }}][custom_{{ $field }}]" 
+                                                   id="custom-field-{{ $section }}-{{ $index }}" 
+                                                   class="form-control mt-2 custom-field-input" 
+                                                   placeholder="Please specify your field of study..." 
+                                                   value="{{ $isCustomValue ? $currentValue : '' }}"
+                                                   style="display: {{ $isCustomValue ? 'block' : 'none' }};">
+                                                   
+                                            <small class="form-text text-muted">
+                                                <i class="fas fa-info-circle"></i> Don't see your field of study? Select "Other (Please specify)" to add a custom one.
+                                            </small>
+                                            
+                                        @elseif($fieldConfig['type'] == 'select')
                                             <select name="{{ $section }}[{{ $index }}][{{ $field }}]" class="form-select" {{ isset($fieldConfig['required']) && $fieldConfig['required'] ? 'required' : '' }}>
                                                 @if(isset($fieldConfig['options']) && count($fieldConfig['options']) > 0 && $fieldConfig['options'][0] !== '')
                                                     <option value="">-- Select {{ str_replace(' (Optional)', '', $fieldConfig['label']) }} --</option>
@@ -195,7 +265,50 @@
                 </div>
             </div>
             @endforeach
-
+            
+            <script>
+            function toggleCustomFieldOfStudy(selectElement, uniqueId) {
+                const customInput = document.getElementById('custom-field-' + uniqueId);
+                const isCustomSelected = selectElement.value === 'custom';
+                
+                if (isCustomSelected) {
+                    customInput.style.display = 'block';
+                    customInput.required = true;
+                    customInput.focus();
+                } else {
+                    customInput.style.display = 'none';
+                    customInput.required = false;
+                    customInput.value = '';
+                }
+            }
+            
+            // Handle form submission to use custom value if "Other" is selected
+            document.addEventListener('DOMContentLoaded', function() {
+                const form = document.querySelector('form');
+                if (form) {
+                    form.addEventListener('submit', function(e) {
+                        const customSelects = document.querySelectorAll('.field-of-study-select');
+                        customSelects.forEach(function(select) {
+                            if (select.value === 'custom') {
+                                const uniqueId = select.getAttribute('onchange').match(/'([^']+)'/)[1];
+                                const customInput = document.getElementById('custom-field-' + uniqueId);
+                                if (customInput && customInput.value.trim()) {
+                                    // Create a hidden input with the custom value
+                                    const hiddenInput = document.createElement('input');
+                                    hiddenInput.type = 'hidden';
+                                    hiddenInput.name = select.name;
+                                    hiddenInput.value = customInput.value.trim();
+                                    form.appendChild(hiddenInput);
+                                    
+                                    // Remove the original select to avoid conflicts
+                                    select.disabled = true;
+                                }
+                            }
+                        });
+                    });
+                }
+            });
+            </script>
             <!-- Skills -->
             <div class="card">
                 <div class="card-header">

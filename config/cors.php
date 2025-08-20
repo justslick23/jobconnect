@@ -19,7 +19,10 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'https://cbs.co.ls',
+        'https://www.cbs.co.ls', // Include www subdomain if needed
+    ],
 
     'allowed_origins_patterns' => [],
 
@@ -29,6 +32,6 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => false,
+    'supports_credentials' => true,
 
 ];
