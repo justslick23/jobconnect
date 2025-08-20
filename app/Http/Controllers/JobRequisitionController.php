@@ -13,6 +13,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 class JobRequisitionController extends Controller
 {
     /**
@@ -88,69 +89,6 @@ class JobRequisitionController extends Controller
 
     return view('job_requisitions.edit', compact('jobRequisition', 'departments', 'skills'));
 }
-
-/**
- * Update the specified job requisition in storage.
- */
-public function update(Request $request, JobRequisition $jobRequisition)
-{
-    // Validate the request data
-    $validatedData = $request->validate([
-        'title' => 'required|string|max:255',
-        'department_id' => 'required|exists:departments,id',
-        'vacancies' => 'required|integer|min:1',
-        'location' => 'nullable|string|max:255',
-        'description' => 'nullable|string',
-        'requirements' => 'nullable|string',
-        'employment_type' => 'required|in:full-time,part-time,contract,temporary',
-        'application_deadline' => 'nullable|date|after:now',
-        'min_experience' => 'required|integer|min:0',
-        'education_level' => 'required|string|max:255',
-        'required_skills' => 'required|array|min:1',
-        'required_skills.*' => 'exists:skills,id',
-        'area_of_study' => 'required|array|min:1',
-        'area_of_study.*' => 'string|max:255',
-    ]);
-
-    try {
-        // Convert datetime-local format to Carbon instance
-        if ($validatedData['application_deadline']) {
-            $validatedData['application_deadline'] = Carbon::parse($validatedData['application_deadline']);
-        }
-
-        // Handle area_of_study - store as JSON
-        $validatedData['area_of_study'] = json_encode($validatedData['area_of_study']);
-
-        // Update the job requisition
-        $jobRequisition->update($validatedData);
-
-        // Sync the skills relationship
-        $jobRequisition->skills()->sync($validatedData['required_skills']);
-
-        // Log the update activity
-        activity()
-            ->performedOn($jobRequisition)
-            ->causedBy(auth()->user())
-            ->withProperties([
-                'old_attributes' => $jobRequisition->getOriginal(),
-                'new_attributes' => $jobRequisition->fresh()->toArray()
-            ])
-            ->log('Job requisition updated');
-
-        return redirect()
-            ->route('job-requisitions.show', $jobRequisition)
-            ->with('success', 'Job requisition updated successfully!');
-
-    } catch (\Exception $e) {
-        \Log::error('Job Requisition Update Error: ' . $e->getMessage());
-        
-        return redirect()
-            ->back()
-            ->withInput()
-            ->with('error', 'There was an error updating the job requisition. Please try again.');
-    }
-}
-    
 
     /**
      * Store a newly created resource in storage.
@@ -234,12 +172,82 @@ public function update(Request $request, JobRequisition $jobRequisition)
     /**
      * Remove the specified resource from storage.
      */
+   
+    /**
+     * Update the specified job requisition in storage.
+     */
+    public function update(Request $request, JobRequisition $jobRequisition)
+    {
+        // Validate the request data
+        $validatedData = $request->validate([
+            'title' => 'required|string|max:255',
+            'department_id' => 'required|exists:departments,id',
+            'vacancies' => 'required|integer|min:1',
+            'location' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'requirements' => 'nullable|string',
+            'employment_type' => 'required|in:full-time,part-time,contract,temporary',
+            'application_deadline' => 'nullable|date|after:now',
+            'min_experience' => 'required|integer|min:0',
+            'education_level' => 'required|string|max:255',
+            'required_skills' => 'required|array|min:1',
+            'required_skills.*' => 'exists:skills,id',
+            'area_of_study' => 'required|array|min:1',
+            'area_of_study.*' => 'string|max:255',
+        ]);
+
+        try {
+            // Convert datetime-local format to Carbon instance
+            if ($validatedData['application_deadline']) {
+                $validatedData['application_deadline'] = Carbon::parse($validatedData['application_deadline']);
+            }
+
+            // Handle area_of_study - store as JSON
+            $validatedData['area_of_study'] = json_encode($validatedData['area_of_study']);
+
+            // Update the job requisition
+            $jobRequisition->update($validatedData);
+
+            // Sync the skills relationship
+            $jobRequisition->skills()->sync($validatedData['required_skills']);
+
+            return redirect()
+                ->route('job-requisitions.show', $jobRequisition)
+                ->with('success', 'Job requisition updated successfully!');
+
+        } catch (\Exception $e) {
+            Log::error('Job Requisition Update Error: ' . $e->getMessage());
+            
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'There was an error updating the job requisition. Please try again.');
+        }
+    }
+
+    /**
+     * Remove the specified job requisition from storage.
+     */
     public function destroy(JobRequisition $jobRequisition)
     {
-        $this->authorize('delete', $jobRequisition);
-        $jobRequisition->delete();
+        try {
+            // Detach all skills before deleting
+            $jobRequisition->skills()->detach();
+            
+            // Delete the job requisition
+            $jobRequisition->delete();
 
-        return redirect()->route('job-requisitions.index')->with('success', 'Job Requisition Deleted.');
+            return redirect()
+                ->route('job-requisitions.index')
+                ->with('success', 'Job requisition deleted successfully!');
+
+        } catch (\Exception $e) {
+            Log::error('Job Requisition Deletion Error: ' . $e->getMessage());
+            
+            return redirect()
+                ->back()
+                ->with('error', 'There was an error deleting the job requisition. Please try again.');
+        }
     }
 
     public function approve(JobRequisition $jobRequisition)
