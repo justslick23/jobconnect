@@ -75,7 +75,7 @@
                                 <span class="checkmark"></span>
                                 <span class="remember-text">Remember</span>
                             </label>
-                            <a href="#" class="forgot-link">Forgot?</a>
+                            <a href="{{ route('password.request') }}" class="forgot-link">Forgot?</a>
                         </div>
 
                         <!-- Sign In Button -->
