@@ -194,6 +194,8 @@ class JobRequisitionController extends Controller
             'required_skills.*' => 'exists:skills,id',
             'area_of_study' => 'required|array|min:1',
             'area_of_study.*' => 'string|max:255',
+            'job_status' => 'required|in:active,closed',
+
         ]);
 
         try {
@@ -212,7 +214,7 @@ class JobRequisitionController extends Controller
             $jobRequisition->skills()->sync($validatedData['required_skills']);
 
             return redirect()
-                ->route('job-requisitions.show', $jobRequisition)
+                ->route('job-requisitions.index', $jobRequisition)
                 ->with('success', 'Job requisition updated successfully!');
 
         } catch (\Exception $e) {

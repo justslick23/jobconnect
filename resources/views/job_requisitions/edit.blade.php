@@ -78,6 +78,20 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
+                                        <label for="job_status">Job Status <span class="required-label">*</span></label>
+                                        <select name="job_status" id="job_status" class="form-select" required>
+                                            <option value="">Select Status</option>
+                                            <option value="active" {{ old('job_status', $jobRequisition->job_status) == 'active' ? 'selected' : '' }}>Active</option>
+                                            <option value="closed" {{ old('job_status', $jobRequisition->job_status) == 'closed' ? 'selected' : '' }}>Closed</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
                                         <label for="vacancies">Number of Vacancies <span class="required-label">*</span></label>
                                         <input type="number" 
                                                name="vacancies" 
