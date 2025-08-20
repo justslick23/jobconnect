@@ -22,7 +22,7 @@
         @csrf
 
         <div class="mb-3">
-            <label for="name" class="form-label">User Name</label>
+            <label for="name" class="form-label">Full Name</label>
             <input type="text" name="name" class="form-control" value="{{ old('name') }}" required>
         </div>
 
