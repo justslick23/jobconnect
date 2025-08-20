@@ -16,6 +16,20 @@
             color: #222;
             margin: 0;
             padding: 0;
+            position: relative;
+        }
+
+        /* Watermark */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 60pt;
+            color: #cccccc;
+            opacity: 0.1;
+            z-index: 0;
+            white-space: nowrap;
         }
 
         /* Header */
@@ -28,6 +42,8 @@
             align-items: center;
             border-radius: 5px;
             padding: 10px;
+            z-index: 1;
+            position: relative;
         }
 
         .company-logo {
@@ -142,6 +158,9 @@
     </style>
 </head>
 <body>
+    <!-- Watermark -->
+    <div class="watermark">CBS Recruitment</div>
+
     <!-- Header -->
     <div class="pdf-header">
         <div class="company-logo">
@@ -225,7 +244,7 @@
     <!-- QR Code at bottom -->
     <div class="qr-code">
         <img src="{{ $qrCodeUrl }}" alt="QR Code"><br>
-    
+        <small>Scan to Apply</small>
     </div>
 </body>
 </html>
