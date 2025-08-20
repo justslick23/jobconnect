@@ -26,7 +26,6 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: #eaf2fb;
             border-radius: 5px;
             padding: 10px;
         }
@@ -53,16 +52,6 @@
         .job-meta {
             font-size: 10pt;
             color: #2c3e50;
-        }
-
-        .qr-code {
-            text-align: right;
-            flex: 0 0 150px;
-        }
-
-        .qr-code img {
-            width: 150px;
-            height: 150px;
         }
 
         /* Section Titles */
@@ -132,6 +121,17 @@
             font-weight: 500;
         }
 
+        /* QR Code at bottom center */
+        .qr-code {
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .qr-code img {
+            width: 150px;
+            height: 150px;
+        }
+
         /* Print overrides */
         @media print {
             .pdf-header {
@@ -154,11 +154,6 @@
                 <strong>Department:</strong> {{ $jobRequisition->department->name ?? 'N/A' }} |
                 <strong>Ref:</strong> {{ $jobRequisition->reference_number ?? 'N/A' }}
             </div>
-        </div>
-
-        <div class="qr-code">
-            <img src="{{ $qrCodeUrl }}" alt="QR Code"><br>
-            <small>Scan to Apply</small>
         </div>
     </div>
 
@@ -226,5 +221,11 @@
         @endforeach
     </div>
     @endif
+
+    <!-- QR Code at bottom -->
+    <div class="qr-code">
+        <img src="{{ $qrCodeUrl }}" alt="QR Code"><br>
+    
+    </div>
 </body>
 </html>
