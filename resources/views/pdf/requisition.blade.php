@@ -102,6 +102,12 @@
             background: #f9f9f9;
         }
 
+        .qr-code img {
+    width: 150px;
+    height: 150px;
+}
+
+
         /* Print overrides */
         @media print {
             .pdf-header {
@@ -115,7 +121,7 @@
     <!-- Header -->
     <div class="pdf-header">
         <div class="company-logo">
-            <img src="{{ public_path('assets/img/cbs-logo.jpg') }}" alt="Company Logo" width="120">
+            <img src="{{ public_path('assets/img/CBS logo.jpg') }}" alt="Company Logo" width="120">
         </div>
         <div class="job-info">
             <h1>{{ $jobRequisition->title }}</h1>
@@ -125,8 +131,7 @@
             </div>
         </div>
         <div class="qr-code" style="text-align: right;">
-            <img src="{{ $qrCodeUrl }}" alt="QR Code" width="100"><br>
-            <small>Scan to Apply</small>
+            <img src="{{ $qrCodeUrl }}" alt="QR Code" width="150"><br>
         </div>
         
 

@@ -46,31 +46,33 @@ class JobRequisitionController extends Controller
 
     }
     public function downloadPdf($id)
-    {
-        $jobRequisition = JobRequisition::with('department','skills')->findOrFail($id);
-    
-        $renderer = new ImageRenderer(
-            new RendererStyle(100),
-            new SvgImageBackEnd()
-        );
-    
-        $writer = new Writer($renderer);
-    
-        // Generate SVG string
-        $svg = $writer->writeString(route('job-requisitions.show', $jobRequisition->slug_uuid));
-    
-        // Convert SVG string into a data URI (for <img src="...">)
-        $qrCodeUrl = 'data:image/svg+xml;base64,' . base64_encode($svg);
-    
-        // Pass requisition + QR code URL to view
-        $pdf = Pdf::loadView('pdf.requisition', [
-                    'jobRequisition' => $jobRequisition,
-                    'qrCodeUrl' => $qrCodeUrl
-                ])
-                ->setPaper('a4', 'portrait');
-    
-        return $pdf->download(Str::slug($jobRequisition->title).'-details.pdf');
-    }
+{
+    $jobRequisition = JobRequisition::with('department','skills')->findOrFail($id);
+
+    $renderer = new ImageRenderer(
+        new RendererStyle(100),
+        new SvgImageBackEnd()
+    );
+
+    $writer = new Writer($renderer);
+
+    // Generate SVG string
+    $svg = $writer->writeString(route('job-requisitions.show', $jobRequisition->slug_uuid));
+
+    // Convert SVG string into a data URI (for <img src="...">)
+    $qrCodeUrl = 'data:image/svg+xml;base64,' . base64_encode($svg);
+
+    // Pass requisition + QR code URL to view
+    $pdf = Pdf::loadView('pdf.requisition', [
+                'jobRequisition' => $jobRequisition,
+                'qrCodeUrl' => $qrCodeUrl
+            ])
+            ->setPaper('a4', 'portrait');
+
+    $filename = Str::title($jobRequisition->title) . '-' . $jobRequisition->uuid . '-Details.pdf';
+
+    return $pdf->download($filename);
+}
 
 
     public function edit(JobRequisition $jobRequisition)
