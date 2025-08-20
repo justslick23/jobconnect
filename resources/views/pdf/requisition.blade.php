@@ -3,289 +3,464 @@
 <head>
     <meta charset="utf-8">
     <title>{{ $jobRequisition->title }} - Job Details</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* General Styles */
+        /* A4 PDF Optimized Styles */
+        @page {
+            size: A4 !important;
+            margin: 15mm !important;
+        }
+
+        * {
+            box-sizing: border-box !important;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            font-size: 11px;
-            line-height: 1.5;
-            color: #333;
-            margin: 0;
-            padding: 20mm;
-            background: #fff;
-            -webkit-print-color-adjust: exact;
-            color-adjust: exact;
+            font-family: 'Roboto', 'Arial', sans-serif !important;
+            font-size: 10pt !important;
+            line-height: 1.4 !important;
+            color: #2c3e50 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            width: 210mm !important;
+            min-height: 297mm !important;
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
         }
 
-        /* Company Logo */
-        .page-logo {
-            text-align: center;
-            margin-bottom: 30px;
+        /* Header Section - Compact A4 Design */
+        .pdf-header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%) !important;
+            color: white !important;
+            padding: 15mm 0 8mm 0 !important;
+            margin: -15mm -15mm 8mm -15mm !important;
+            position: relative !important;
         }
 
-        .page-logo img {
-            max-height: 70px;
-            object-fit: contain;
+        .header-content {
+            padding: 0 15mm !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
         }
 
-        /* Header */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #e0e0e0;
+        .company-logo {
+            text-align: center !important;
+            margin-bottom: 10mm !important;
+            padding: 0 15mm !important;
         }
 
-        .header-left {
-            max-width: 65%;
+        .company-logo img {
+            max-height: 12mm !important;
+            max-width: 80mm !important;
+            object-fit: contain !important;
+            filter: brightness(0) invert(1) !important;
         }
 
-        .header-left h1 {
-            font-size: 24px;
-            font-weight: 600;
-            margin: 0 0 8px 0;
-            color: #1a1a1a;
-            line-height: 1.3;
+        .job-info {
+            flex: 1 !important;
+            margin-right: 10mm !important;
         }
 
-        .header-left p {
-            margin: 3px 0;
-            font-size: 12px;
-            color: #666;
+        .job-title {
+            font-size: 18pt !important;
+            font-weight: 700 !important;
+            margin: 0 0 3mm 0 !important;
+            line-height: 1.2 !important;
         }
 
-        .qr-code {
-            text-align: center;
-            width: 100px;
+        .job-meta {
+            font-size: 9pt !important;
+            opacity: 0.9 !important;
+            margin: 2mm 0 !important;
         }
 
-        .qr-code img {
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
+        .qr-code-section {
+            text-align: center !important;
+            background: rgba(255, 255, 255, 0.95) !important;
+            padding: 6mm !important;
+            border-radius: 4mm !important;
+            color: #2c3e50 !important;
+            min-width: 25mm !important;
         }
 
-        .qr-code p {
-            font-size: 10px;
-            margin-top: 8px;
-            color: #666;
-            font-weight: 500;
+        .qr-code-section img {
+            width: 20mm !important;
+            height: 20mm !important;
+            border-radius: 2mm !important;
         }
 
-        /* Section Titles */
+        .qr-code-section p {
+            font-size: 8pt !important;
+            font-weight: 600 !important;
+            margin: 2mm 0 0 0 !important;
+            color: #3498db !important;
+        }
+
+        /* Main Content Area */
+        .content-wrapper {
+            padding: 0 15mm !important;
+        }
+
+        /* Key Details Section */
+        .key-details {
+            background: #f8f9fa !important;
+            border: 1pt solid #dee2e6 !important;
+            border-radius: 2mm !important;
+            margin-bottom: 8mm !important;
+            overflow: hidden !important;
+        }
+
+        .details-header {
+            background: #495057 !important;
+            color: white !important;
+            padding: 3mm 5mm !important;
+            font-size: 10pt !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5pt !important;
+        }
+
+        .details-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 0 !important;
+        }
+
+        .detail-item {
+            padding: 4mm 5mm !important;
+            border-bottom: 0.5pt solid #dee2e6 !important;
+            display: flex !important;
+            justify-content: space-between !important;
+        }
+
+        .detail-item:nth-child(odd) {
+            background: #ffffff !important;
+            border-right: 0.5pt solid #dee2e6 !important;
+        }
+
+        .detail-item:nth-child(even) {
+            background: #f8f9fa !important;
+        }
+
+        .detail-label {
+            font-weight: 600 !important;
+            color: #495057 !important;
+            font-size: 9pt !important;
+        }
+
+        .detail-value {
+            color: #212529 !important;
+            font-size: 9pt !important;
+            font-weight: 400 !important;
+        }
+
+        /* Content Sections */
+        .section {
+            margin-bottom: 8mm !important;
+            page-break-inside: avoid !important;
+        }
+
         .section-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #1a1a1a;
-            margin: 30px 0 15px 0;
+            font-size: 14pt !important;
+            font-weight: 700 !important;
+            color: #2c3e50 !important;
+            margin-bottom: 3mm !important;
+            padding-bottom: 1mm !important;
+            border-bottom: 2pt solid #3498db !important;
+            position: relative !important;
         }
 
-        .content {
-            margin: 0 0 20px 0;
-            color: #444;
+        .section-title::after {
+            content: '' !important;
+            position: absolute !important;
+            bottom: -2pt !important;
+            left: 0 !important;
+            width: 15mm !important;
+            height: 2pt !important;
+            background: #2c3e50 !important;
         }
 
-        /* Tables */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 15px 0;
-            background: #fff;
-            page-break-inside: avoid;
+        .section-content {
+            font-size: 10pt !important;
+            line-height: 1.5 !important;
+            color: #495057 !important;
+            text-align: justify !important;
         }
 
-        th, td {
-            padding: 10px 12px;
-            text-align: left;
-            border: 1px solid #ddd;
-            vertical-align: top;
+        .section-content p {
+            margin: 0 0 3mm 0 !important;
         }
 
-        th {
-            background-color: #f8f8f8;
-            width: 25%;
-            font-weight: 600;
-            color: #333;
-            font-size: 11px;
+        .section-content ul,
+        .section-content ol {
+            margin: 0 0 3mm 5mm !important;
+            padding: 0 !important;
         }
 
-        td {
-            font-size: 11px;
-            color: #333;
+        .section-content li {
+            margin-bottom: 1.5mm !important;
         }
 
-        /* Education Level Section */
-        .education-level {
-            background: #f8f8f8;
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            margin: 10px 0;
-            page-break-inside: avoid;
+        /* Education Level */
+        .education-highlight {
+            background: linear-gradient(135deg, #3498db, #2c3e50) !important;
+            color: white !important;
+            padding: 5mm !important;
+            border-radius: 2mm !important;
+            margin: 3mm 0 !important;
+            text-align: center !important;
         }
 
-        .education-level strong {
-            color: #333;
-            font-weight: 600;
+        .education-label {
+            font-size: 8pt !important;
+            text-transform: uppercase !important;
+            letter-spacing: 1pt !important;
+            opacity: 0.8 !important;
+            margin-bottom: 1mm !important;
         }
 
-        /* Badges */
-        .badge {
-            display: inline-block;
-            background-color: #f0f0f0;
-            color: #333;
-            padding: 4px 8px;
-            border: 1px solid #ccc;
-            margin: 2px 2px 2px 0;
-            font-size: 10px;
-            font-weight: normal;
+        .education-value {
+            font-size: 12pt !important;
+            font-weight: 700 !important;
         }
 
-        /* Section Management */
-        .section-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1a1a1a;
-            margin: 20px 0 10px 0;
-            page-break-after: avoid;
+        /* Tags for Skills and Areas */
+        .tags-wrapper {
+            margin-top: 3mm !important;
         }
 
-        .content {
-            margin: 0 0 15px 0;
-            color: #444;
-            page-break-inside: avoid;
-            orphans: 3;
-            widows: 3;
+        .tag {
+            display: inline-block !important;
+            background: #e9ecef !important;
+            color: #495057 !important;
+            padding: 2mm 3mm !important;
+            margin: 0 2mm 2mm 0 !important;
+            border-radius: 10pt !important;
+            font-size: 8pt !important;
+            font-weight: 500 !important;
+            border: 0.5pt solid #ced4da !important;
         }
 
-        /* PDF Page Control */
-        .page-break-before {
-            page-break-before: always;
+        .tag:nth-child(3n+1) {
+            background: #d4edda !important;
+            border-color: #c3e6cb !important;
+            color: #155724 !important;
         }
 
-        .page-break-after {
-            page-break-after: always;
+        .tag:nth-child(3n+2) {
+            background: #d1ecf1 !important;
+            border-color: #bee5eb !important;
+            color: #0c5460 !important;
         }
 
-        .no-break {
-            page-break-inside: avoid;
+        .tag:nth-child(3n) {
+            background: #f8d7da !important;
+            border-color: #f5c6cb !important;
+            color: #721c24 !important;
         }
+
+        /* A4 Print Specific */
         @media print {
             body {
-                margin: 20px;
+                width: 210mm !important;
+                height: 297mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
             }
-            
-            table {
-                background: white;
+
+            .pdf-header {
+                margin: 0 0 8mm 0 !important;
+                padding: 10mm 15mm 6mm 15mm !important;
             }
-            
-            th {
-                background-color: #f8f8f8;
+
+            .section {
+                page-break-inside: avoid !important;
+            }
+
+            .section-title {
+                page-break-after: avoid !important;
+            }
+
+            .key-details,
+            .education-highlight {
+                page-break-inside: avoid !important;
+            }
+
+            @page {
+                margin: 0 !important;
             }
         }
 
-        /* Responsive */
-        @media (max-width: 768px) {
-            .header {
-                flex-direction: column;
+        /* Mobile fallback */
+        @media (max-width: 600px) {
+            body {
+                width: 100% !important;
+                min-height: auto !important;
             }
-            
-            .header-left {
-                max-width: 100%;
-                margin-bottom: 20px;
+
+            .header-content {
+                flex-direction: column !important;
+                text-align: center !important;
             }
-            
-            .qr-code {
-                align-self: center;
+
+            .job-info {
+                margin-right: 0 !important;
+                margin-bottom: 5mm !important;
             }
+
+            .details-grid {
+                grid-template-columns: 1fr !important;
+            }
+
+            .detail-item:nth-child(odd) {
+                border-right: none !important;
+            }
+        }
+
+        /* Full Width Table Alternative for Details */
+        .details-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin: 0 !important;
+        }
+
+        .details-table tr:nth-child(even) {
+            background: #f8f9fa !important;
+        }
+
+        .details-table tr:nth-child(odd) {
+            background: #ffffff !important;
+        }
+
+        .details-table th,
+        .details-table td {
+            padding: 3mm 4mm !important;
+            text-align: left !important;
+            border: 0.5pt solid #dee2e6 !important;
+            vertical-align: top !important;
+            font-size: 9pt !important;
+        }
+
+        .details-table th {
+            font-weight: 600 !important;
+            color: #495057 !important;
+            background: #e9ecef !important;
+            width: 30% !important;
+        }
+
+        .details-table td {
+            color: #212529 !important;
         }
     </style>
 </head>
 <body>
-    <!-- Company Logo -->
-    <div class="page-logo">
-        <img src="{{ asset('images/company-logo.png') }}" alt="Company Logo">
+    <!-- PDF Header -->
+    <div class="pdf-header">
+        <!-- Company Logo -->
+        <div class="company-logo">
+            <img src="{{ asset('assets/img/CBS logo.jpg') }}" alt="Company Logo">
+        </div>
+
+        <!-- Header Content -->
+        <div class="header-content">
+            <div class="job-info">
+                <h1 class="job-title">{{ $jobRequisition->title }}</h1>
+                <div class="job-meta">
+                    <strong>Department:</strong> {{ $jobRequisition->department->name ?? 'N/A' }} | 
+                    <strong>Ref:</strong> {{ $jobRequisition->reference_number ?? 'N/A' }}
+                </div>
+            </div>
+            <div class="qr-code-section">
+                <img src="{{ $qrCodeUrl }}" alt="QR Code">
+                <p>Scan to Apply</p>
+            </div>
+        </div>
     </div>
 
-    <!-- Header -->
-    <div class="header">
-        <div class="header-left">
-            <h1>{{ $jobRequisition->title }}</h1>
-            <p><strong>Department:</strong> {{ $jobRequisition->department->name ?? 'N/A' }}</p>
-            <p><strong>Reference:</strong> {{ $jobRequisition->reference_number ?? 'N/A' }}</p>
+    <!-- Main Content -->
+    <div class="content-wrapper">
+        <!-- Key Details -->
+        <div class="key-details">
+            <div class="details-header">Position Information</div>
+            <table class="details-table">
+                <tr>
+                    <th>Available Positions</th>
+                    <td>{{ $jobRequisition->vacancies ?? 1 }}</td>
+                </tr>
+                <tr>
+                    <th>Employment Type</th>
+                    <td>{{ $jobRequisition->employment_type ?? 'Full-time' }}</td>
+                </tr>
+                <tr>
+                    <th>Location</th>
+                    <td>{{ $jobRequisition->location ?? 'Remote' }}</td>
+                </tr>
+                <tr>
+                    <th>Posted Date</th>
+                    <td>{{ $jobRequisition->created_at->format('M j, Y') }}</td>
+                </tr>
+                @if($jobRequisition->application_deadline)
+                <tr>
+                    <th>Application Deadline</th>
+                    <td>{{ $jobRequisition->application_deadline->format('M j, Y') }}</td>
+                </tr>
+                @endif
+            </table>
         </div>
-        <div class="qr-code">
-            <img src="{{ $qrCodeUrl }}" alt="QR Code" width="100" height="100">
-            <p>Scan to Apply</p>
-        </div>
-    </div>
 
-    <!-- Key Details Table -->
-    <div class="no-break">
-    <table>
-        <tr>
-            <th>Positions</th>
-            <td>{{ $jobRequisition->vacancies ?? 1 }}</td>
-        </tr>
-        <tr>
-            <th>Employment Type</th>
-            <td>{{ $jobRequisition->employment_type ?? 'Full-time' }}</td>
-        </tr>
-        <tr>
-            <th>Location</th>
-            <td>{{ $jobRequisition->location ?? 'Remote' }}</td>
-        </tr>
-        <tr>
-            <th>Posted</th>
-            <td>{{ $jobRequisition->created_at->format('M j, Y') }}</td>
-        </tr>
-        @if($jobRequisition->application_deadline)
-        <tr>
-            <th>Deadline</th>
-            <td>{{ $jobRequisition->application_deadline->format('M j, Y') }}</td>
-        </tr>
+        <!-- About This Role -->
+        @if($jobRequisition->description)
+        <div class="section">
+            <h2 class="section-title">About This Role</h2>
+            <div class="section-content">{!! $jobRequisition->description !!}</div>
+        </div>
         @endif
-    </table>
+
+        <!-- Requirements -->
+        @if($jobRequisition->requirements)
+        <div class="section">
+            <h2 class="section-title">Requirements</h2>
+            <div class="section-content">{!! $jobRequisition->requirements !!}</div>
+        </div>
+        @endif
+
+        <!-- Education Level -->
+        @if($jobRequisition->education_level)
+        <div class="section">
+            <h2 class="section-title">Education Requirements</h2>
+            <div class="education-highlight">
+                <div class="education-label">Minimum Required Level</div>
+                <div class="education-value">{{ $jobRequisition->education_level }}</div>
+            </div>
+        </div>
+        @endif
+
+        <!-- Skills -->
+        @if($jobRequisition->skills && $jobRequisition->skills->count())
+        <div class="section">
+            <h2 class="section-title">Required Skills</h2>
+            <div class="tags-wrapper">
+                @foreach($jobRequisition->skills as $skill)
+                    <span class="tag">{{ $skill->name }}</span>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        <!-- Areas of Study -->
+        @if($jobRequisition->required_areas_of_study && !empty($jobRequisition->required_areas_of_study))
+        <div class="section">
+            <h2 class="section-title">Areas of Study</h2>
+            <div class="tags-wrapper">
+                @foreach($jobRequisition->required_areas_of_study as $area)
+                    <span class="tag">{{ is_array($area) ? ($area['name'] ?? $area['title'] ?? 'Unknown') : $area }}</span>
+                @endforeach
+            </div>
+        </div>
+        @endif
     </div>
-
-    <!-- About This Role -->
-    @if($jobRequisition->description)
-    <div class="section-title">About This Role</div>
-    <div class="content">{!! $jobRequisition->description !!}</div>
-    @endif
-
-    <!-- Requirements -->
-    @if($jobRequisition->requirements)
-    <div class="section-title">Requirements</div>
-    <div class="content">{!! $jobRequisition->requirements !!}</div>
-    @endif
-
-    <!-- Education Level -->
-    @if($jobRequisition->education_level)
-    <div class="section-title">Education Level</div>
-    <div class="education-level">
-        <strong>Required:</strong> {{ $jobRequisition->education_level }}
-    </div>
-    @endif
-
-    <!-- Skills -->
-    @if($jobRequisition->skills && $jobRequisition->skills->count())
-    <div class="section-title">Required Skills</div>
-    <div class="content">
-        @foreach($jobRequisition->skills as $skill)
-            <span class="badge">{{ $skill->name }}</span>
-        @endforeach
-    </div>
-    @endif
-
-    <!-- Areas of Study -->
-    @if($jobRequisition->required_areas_of_study && !empty($jobRequisition->required_areas_of_study))
-    <div class="section-title">Areas of Study</div>
-    <div class="content">
-        @foreach($jobRequisition->required_areas_of_study as $area)
-            <span class="badge">{{ is_array($area) ? ($area['name'] ?? $area['title'] ?? 'Unknown') : $area }}</span>
-        @endforeach
-    </div>
-    @endif
 </body>
 </html>
