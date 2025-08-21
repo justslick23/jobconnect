@@ -134,7 +134,7 @@
     <!-- Job Description -->
     <div class="section">
         <h2>Job Description</h2>
-        <p>{!! nl2br(e($jobRequisition->description)) !!}</p>
+        <p>{!! $jobRequisition->description !!}</p>
     </div>
 
     <!-- Requirements -->
@@ -156,16 +156,18 @@
     @endif
 
     <!-- Skills -->
-    @if(!empty($jobRequisition->skills))
-    <div class="section">
-        <h2>Skills</h2>
-        <ul>
-            @foreach($jobRequisition->skills as $skill)
-                <li>{{ $skill }}</li>
-            @endforeach
-        </ul>
-    </div>
-    @endif
+  <!-- Skills -->
+@if(!empty($jobRequisition->skills) && $jobRequisition->skills->count())
+<div class="section">
+    <h2>Skills</h2>
+    <ul>
+        @foreach($jobRequisition->skills as $skill)
+            <li>{{ $skill->name }}</li>
+        @endforeach
+    </ul>
+</div>
+@endif
+
 
     <!-- Footer -->
     <div class="footer">
