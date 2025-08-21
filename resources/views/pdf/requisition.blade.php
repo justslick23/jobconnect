@@ -134,7 +134,7 @@
     <div class="pdf-header">
         <div>
             <div class="company-logo">
-                <img src="{{ public_path('assets/img/CBS logo.png') }}" alt="Company Logo">
+                <img src="{{ asset('assets/img/CBS logo.png') }}" alt="Company Logo">
             </div>
 
             <div class="job-info">

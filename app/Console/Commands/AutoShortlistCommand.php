@@ -159,10 +159,12 @@ class AutoShortlistCommand extends Command
 
     protected function calculateApplicationScores($user, array $jobSkills, int $totalJobSkills, float $minExperience, JobRequisition $requisition, ShortlistingSetting $settings): array
     {
-        // Enhanced skills matching with fuzzy logic
+        // Enhanced skills matching with more lenient scoring and keyword matching
         $userSkills = $user->skills ? $user->skills->pluck('name')->toArray() : [];
         $matchedSkillsCount = $this->countMatchedSkills($jobSkills, $userSkills);
-        $skillsFraction = $totalJobSkills > 0 ? $matchedSkillsCount / $totalJobSkills : 1;
+        
+        // More lenient skills scoring - full marks for matching a reasonable portion
+        $skillsFraction = $this->calculateSkillsFraction($matchedSkillsCount, $totalJobSkills);
         $skillsScore = $skillsFraction * ($settings->skills_weight ?? 0);
 
         $totalExperienceYears = $this->calculateTotalExperienceYears($user);
@@ -190,6 +192,47 @@ class AutoShortlistCommand extends Command
             'qualification_bonus' => round($qualificationBonusScore, 2),
             'total_score' => round($totalScore, 2),
         ];
+    }
+
+    /**
+     * Calculate skills fraction with more lenient scoring
+     * Users can get full marks without matching all skills
+     */
+    protected function calculateSkillsFraction(float $matchedSkillsCount, int $totalJobSkills): float
+    {
+        if ($totalJobSkills == 0) {
+            return 1.0; // No skills required, full score
+        }
+        
+        if ($matchedSkillsCount == 0) {
+            return 0.0; // No skills matched, no score
+        }
+        
+        // Graduated scoring - get higher fractions for partial matches
+        // This gives diminishing returns but allows full marks with fewer skills
+        
+        // For 1-2 skills: need 100% match
+        if ($totalJobSkills <= 2) {
+            return $matchedSkillsCount / $totalJobSkills;
+        }
+        
+        // For 3-4 skills: can get full marks with 75% match
+        if ($totalJobSkills <= 4) {
+            $threshold = ceil($totalJobSkills * 0.75);
+            if ($matchedSkillsCount >= $threshold) {
+                return 1.0;
+            }
+            return $matchedSkillsCount / $threshold;
+        }
+        
+        // For 5+ skills: can get full marks with 60% match
+        $threshold = ceil($totalJobSkills * 0.6);
+        if ($matchedSkillsCount >= $threshold) {
+            return 1.0;
+        }
+        
+        // Scale score based on how close they are to the threshold
+        return $matchedSkillsCount / $threshold;
     }
 
     protected function countMatchedSkills(array $jobSkills, array $userSkills): float
@@ -223,8 +266,13 @@ class AutoShortlistCommand extends Command
                 return true;
             }
             
-            // Check for common skill variations
+            // Check for common skill variations and synonyms
             if ($this->areSkillVariations($jobSkillNormalized, $userSkillNormalized)) {
+                return true;
+            }
+
+            // Enhanced keyword matching for related terms
+            if ($this->hasRelatedKeywords($jobSkillNormalized, $userSkillNormalized)) {
                 return true;
             }
         }
@@ -238,7 +286,7 @@ class AutoShortlistCommand extends Command
         $skill = strtolower(trim($skill));
         
         // Remove common words/suffixes
-        $removeWords = ['.js', '.net', ' programming', ' development', ' developer', ' language', ' framework', ' technology'];
+        $removeWords = ['.js', '.net', ' programming', ' development', ' developer', ' language', ' framework', ' technology', ' skills', ' skill'];
         $skill = str_replace($removeWords, '', $skill);
         
         // Remove special characters and extra spaces
@@ -252,20 +300,29 @@ class AutoShortlistCommand extends Command
     {
         // Define common skill variations
         $variations = [
-            'javascript' => ['js', 'ecmascript', 'javascript'],
-            'python' => ['python', 'python3', 'py'],
-            'csharp' => ['c#', 'csharp', 'c sharp', 'dotnet', '.net'],
-            'nodejs' => ['node.js', 'nodejs', 'node', 'javascript backend'],
-            'reactjs' => ['react.js', 'reactjs', 'react', 'react framework'],
-            'vuejs' => ['vue.js', 'vuejs', 'vue', 'vue framework'],
+            'javascript' => ['js', 'ecmascript', 'javascript', 'java script'],
+            'python' => ['python', 'python3', 'py', 'python programming'],
+            'csharp' => ['c#', 'csharp', 'c sharp', 'dotnet', '.net', 'dot net'],
+            'nodejs' => ['node.js', 'nodejs', 'node', 'javascript backend', 'node js'],
+            'reactjs' => ['react.js', 'reactjs', 'react', 'react framework', 'react js'],
+            'vuejs' => ['vue.js', 'vuejs', 'vue', 'vue framework', 'vue js'],
             'angular' => ['angular.js', 'angularjs', 'angular', 'angular framework'],
             'mysql' => ['mysql', 'my sql', 'mysql database'],
-            'postgresql' => ['postgresql', 'postgres', 'postgre sql'],
-            'mongodb' => ['mongodb', 'mongo db', 'mongo'],
-            'photoshop' => ['photoshop', 'adobe photoshop', 'ps'],
+            'postgresql' => ['postgresql', 'postgres', 'postgre sql', 'postgres sql'],
+            'mongodb' => ['mongodb', 'mongo db', 'mongo', 'nosql'],
+            'photoshop' => ['photoshop', 'adobe photoshop', 'ps', 'photo shop'],
             'illustrator' => ['illustrator', 'adobe illustrator', 'ai'],
-            'html' => ['html', 'html5', 'hypertext markup language'],
-            'css' => ['css', 'css3', 'cascading style sheets'],
+            'html' => ['html', 'html5', 'hypertext markup language', 'markup'],
+            'css' => ['css', 'css3', 'cascading style sheets', 'styling'],
+            'php' => ['php', 'php7', 'php8', 'hypertext preprocessor'],
+            'java' => ['java', 'java8', 'java11', 'java17', 'jdk'],
+            'cplusplus' => ['c++', 'cpp', 'c plus plus', 'cplusplus'],
+            'git' => ['git', 'github', 'gitlab', 'version control', 'source control'],
+            'docker' => ['docker', 'containerization', 'containers'],
+            'kubernetes' => ['kubernetes', 'k8s', 'container orchestration'],
+            'aws' => ['aws', 'amazon web services', 'cloud computing'],
+            'azure' => ['azure', 'microsoft azure', 'azure cloud'],
+            'gcp' => ['gcp', 'google cloud platform', 'google cloud'],
         ];
         
         foreach ($variations as $baseSkill => $variantsList) {
@@ -274,6 +331,74 @@ class AutoShortlistCommand extends Command
             }
         }
         
+        return false;
+    }
+
+    /**
+     * Check for related keywords that might indicate similar skills
+     * This handles cases where people describe skills differently
+     */
+    protected function hasRelatedKeywords(string $jobSkill, string $userSkill): bool
+    {
+        // Define related keywords and concepts
+        $relatedKeywords = [
+            'web development' => ['frontend', 'backend', 'fullstack', 'full stack', 'web dev', 'website', 'web app', 'html', 'css', 'javascript'],
+            'frontend' => ['ui', 'user interface', 'client side', 'react', 'vue', 'angular', 'html', 'css', 'javascript'],
+            'backend' => ['server side', 'api', 'database', 'server', 'node', 'php', 'python', 'java'],
+            'database' => ['sql', 'mysql', 'postgresql', 'mongodb', 'data management', 'queries'],
+            'mobile development' => ['ios', 'android', 'react native', 'flutter', 'mobile app', 'app development'],
+            'ui design' => ['user interface', 'ux', 'user experience', 'design', 'figma', 'sketch', 'photoshop'],
+            'ux design' => ['user experience', 'ui', 'user interface', 'design', 'wireframes', 'prototyping'],
+            'data analysis' => ['analytics', 'data science', 'excel', 'sql', 'python', 'r', 'statistics'],
+            'project management' => ['pmp', 'agile', 'scrum', 'kanban', 'project coordination', 'team lead'],
+            'digital marketing' => ['seo', 'sem', 'social media', 'content marketing', 'google ads', 'facebook ads'],
+            'graphic design' => ['photoshop', 'illustrator', 'indesign', 'visual design', 'branding', 'logo design'],
+            'accounting' => ['bookkeeping', 'financial reporting', 'quickbooks', 'excel', 'financial analysis'],
+            'sales' => ['business development', 'lead generation', 'customer relations', 'crm', 'revenue'],
+            'customer service' => ['customer support', 'help desk', 'client relations', 'support', 'communication'],
+            'writing' => ['content writing', 'copywriting', 'technical writing', 'blog writing', 'content creation'],
+            'devops' => ['ci cd', 'deployment', 'automation', 'docker', 'kubernetes', 'aws', 'cloud'],
+            'testing' => ['qa', 'quality assurance', 'automation testing', 'manual testing', 'selenium'],
+            'machine learning' => ['ai', 'artificial intelligence', 'data science', 'python', 'tensorflow', 'deep learning'],
+        ];
+
+        foreach ($relatedKeywords as $concept => $keywords) {
+            $jobSkillMatches = $this->containsAnyKeyword($jobSkill, [$concept, ...$keywords]);
+            $userSkillMatches = $this->containsAnyKeyword($userSkill, [$concept, ...$keywords]);
+            
+            if ($jobSkillMatches && $userSkillMatches) {
+                return true;
+            }
+        }
+
+        // Check for partial word matches (useful for compound skills)
+        $jobWords = explode(' ', $jobSkill);
+        $userWords = explode(' ', $userSkill);
+        
+        foreach ($jobWords as $jobWord) {
+            if (strlen($jobWord) >= 4) { // Only check meaningful words
+                foreach ($userWords as $userWord) {
+                    if (strlen($userWord) >= 4 && 
+                        (strpos($userWord, $jobWord) !== false || strpos($jobWord, $userWord) !== false)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if a skill contains any of the given keywords
+     */
+    protected function containsAnyKeyword(string $skill, array $keywords): bool
+    {
+        foreach ($keywords as $keyword) {
+            if (strpos($skill, $keyword) !== false) {
+                return true;
+            }
+        }
         return false;
     }
 
