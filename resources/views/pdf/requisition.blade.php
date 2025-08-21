@@ -23,7 +23,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 2px solid #333;
+            border-bottom: 3px solid #3498db;
             padding-bottom: 10px;
             margin-bottom: 20px;
         }
@@ -38,8 +38,9 @@
         }
 
         .job-info h1 {
-            font-size: 20px;
+            font-size: 22px;
             margin: 0;
+            color: #2c3e50;
         }
 
         .job-meta {
@@ -68,11 +69,11 @@
         }
 
         .section h2 {
-            font-size: 14px;
-            border-bottom: 1px solid #ccc;
+            font-size: 15px;
+            border-bottom: 2px solid #3498db;
             padding-bottom: 5px;
             margin-bottom: 10px;
-            color: #222;
+            color: #2980b9;
         }
 
         .section p, .section ul {
@@ -81,6 +82,21 @@
 
         ul {
             padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 4px;
+        }
+
+        /* Skills & Areas of Study as colored tags */
+        .tag {
+            display: inline-block;
+            background-color: #d6eaf8;
+            color: #1b4f72;
+            padding: 3px 8px;
+            margin: 2px 2px 2px 0;
+            border-radius: 4px;
+            font-size: 10pt;
         }
 
         .footer {
@@ -147,27 +163,21 @@
     @if(!empty($jobRequisition->required_areas_of_study))
     <div class="section">
         <h2>Required Areas of Study</h2>
-        <ul>
-            @foreach($jobRequisition->required_areas_of_study as $area)
-                <li>{{ $area }}</li>
-            @endforeach
-        </ul>
+        @foreach($jobRequisition->required_areas_of_study as $area)
+            <span class="tag">{{ is_array($area) ? ($area['name'] ?? $area['title'] ?? $area) : $area }}</span>
+        @endforeach
     </div>
     @endif
 
     <!-- Skills -->
-  <!-- Skills -->
-@if(!empty($jobRequisition->skills) && $jobRequisition->skills->count())
-<div class="section">
-    <h2>Skills</h2>
-    <ul>
+    @if(!empty($jobRequisition->skills) && $jobRequisition->skills->count())
+    <div class="section">
+        <h2>Skills</h2>
         @foreach($jobRequisition->skills as $skill)
-            <li>{{ $skill->name }}</li>
+            <span class="tag">{{ $skill->name }}</span>
         @endforeach
-    </ul>
-</div>
-@endif
-
+    </div>
+    @endif
 
     <!-- Footer -->
     <div class="footer">
