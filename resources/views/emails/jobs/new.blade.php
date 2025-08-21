@@ -18,9 +18,11 @@
         {{ $job->application_deadline ? $job->application_deadline->format('M d, Y') : 'Open until filled' }}
     </p>
 
-    <p>
-        <a href="{{ route('job-requisitions.show', $job->id) }}">Click here to view and apply</a>
-    </p>
+  <p>
+    <a href="{{ route('job-requisitions.show', $job->slugUuid) }}">
+        Click here to view and apply
+    </a>
+</p>
 
     <p>Thanks,<br>CBS Recruitment</p>
 </body>

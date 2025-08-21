@@ -12,7 +12,7 @@
 
     <ul>
         <li><strong>Date & Time:</strong> {{ \Carbon\Carbon::parse($interview->interview_date)->format('l, F j, Y h:i A') }}</li>
-        <li><strong>Location:</strong> {{ $application->jobRequisition->location ?? 'To be communicated' }}</li>
+        <li><strong>Location:</strong> Computer Business Solutions | 4th Floor, Post Office Building Kingsway Road, Maseru</li>
     </ul>
 
     <p>Please make necessary preparations and ensure you are available.</p>

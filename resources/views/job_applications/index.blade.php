@@ -225,6 +225,7 @@
                                                 </thead>
                                                 <tbody>
                                                     @foreach($group as $app)
+                                                
                                                         <tr data-job-id="{{ $req->id }}" data-status="{{ strtolower($app->status) }}" data-score="{{ $app->score->total_score ?? 0 }}">
                                                             <td>
                                                                 <input type="checkbox" class="form-check-input row-select" value="{{ $app->id }}" data-job-id="{{ $req->id }}">
@@ -248,7 +249,9 @@
                                                             </td>
                                                             @if(auth()->user()->isHrAdmin())
                                                             <td>
+                                                          
                                                                 @if($app->score && $app->score->total_score !== null)
+                                                                
                                                                     <span class="fw-bold">{{ number_format($app->score->total_score, 2) }}/100</span>
                                                                     @if($app->score->total_score >= 70)
                                                                         <span class="badge badge-success ms-1">Auto-Shortlisted</span>

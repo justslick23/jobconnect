@@ -31,7 +31,7 @@
                 </div>
                 @if(auth()->user()->isManager() || auth()->user()->isHrAdmin())
                     <a href="{{ route('job-requisitions.create') }}" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> New Requisition
+                        <i class="fas fa-plus"></i> New Post
                     </a>
                 @endif
             </div>
