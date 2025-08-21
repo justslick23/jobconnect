@@ -10,156 +10,95 @@
         }
 
         body {
-            font-family: Arial, Helvetica, sans-serif;
-            font-size: 11pt;
-            line-height: 1.5;
-            color: #222;
+            font-family: DejaVu Sans, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #333;
             margin: 0;
             padding: 0;
-            position: relative;
         }
 
-        /* Watermark */
-        .watermark {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-30deg);
-            font-size: 60pt;
-            color: #cccccc;
-            opacity: 0.1;
-            z-index: 0;
-            white-space: nowrap;
-        }
-
-        /* Header */
         .pdf-header {
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 8mm;
-            margin-bottom: 12mm;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-radius: 5px;
-            padding: 10px;
-            z-index: 1;
-            position: relative;
-        }
-
-        .company-logo {
-            text-align: center;
-            margin-bottom: 10px;
-            flex: 0 0 150px;
+            border-bottom: 2px solid #0056b3;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
         }
 
         .company-logo img {
-            width: 150px;
-            height: 150px;
-            object-fit: cover;
-            display: inline-block;
+            max-width: 120px;
+            height: auto;
+        }
+
+        .job-info {
+            flex: 1;
+            margin-left: 15px;
         }
 
         .job-info h1 {
-            font-size: 18pt;
-            margin: 0 0 3mm 0;
-            color: #2c3e50;
+            font-size: 18px;
+            margin: 0 0 5px 0;
+            color: #0056b3;
         }
 
         .job-meta {
             font-size: 10pt;
-            color: #2c3e50;
+            color: #555;
         }
 
-        /* Section Titles */
-        .section-title {
-            font-size: 13pt;
-            font-weight: bold;
-            margin: 15px 0 8px 0;
-            border-bottom: 2px solid #3498db;
+        .qr-code-header {
+            text-align: center;
+            flex: 0 0 150px;
+        }
+
+        .qr-code-header img {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 5px;
+        }
+
+        .qr-code-header .qr-label {
+            font-size: 8pt;
+            color: #555;
+        }
+
+        h2 {
+            font-size: 14px;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            color: #0056b3;
+            border-bottom: 1px solid #ddd;
             padding-bottom: 3px;
-            color: #2c3e50;
         }
 
-        /* Details Table */
-        .details-table {
+        p {
+            margin: 5px 0;
+        }
+
+        ul {
+            margin: 5px 0 10px 20px;
+        }
+
+        table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 15px;
+            margin-top: 10px;
         }
 
-        .details-table th,
-        .details-table td {
-            border: 1px solid #ccc;
-            padding: 6px 8px;
-            font-size: 10pt;
-            vertical-align: top;
+        table td, table th {
+            border: 1px solid #ddd;
+            padding: 8px;
         }
 
-        .details-table th {
-            background: #d9edf7;
+        table th {
+            background: #f5f5f5;
             text-align: left;
-            width: 30%;
-            color: #2c3e50;
-        }
-
-        .details-table tr:nth-child(even) {
-            background: #f5f9fc;
-        }
-
-        .details-table td {
-            color: #333;
-        }
-
-        /* Content */
-        .section-content {
-            font-size: 10.5pt;
-            text-align: justify;
-        }
-
-        .section-content p {
-            margin: 0 0 8px 0;
-        }
-
-        /* Tags (skills, areas) */
-        .tags-wrapper {
-            margin-top: 5px;
-        }
-
-        .tag {
-            display: inline-block;
-            border: 1px solid #3498db;
-            padding: 3px 8px;
-            margin: 2px;
-            font-size: 9pt;
-            border-radius: 4px;
-            background: #d9edf7;
-            color: #2c3e50;
-            font-weight: 500;
-        }
-
-        /* QR Code at bottom center */
-        .qr-code {
-            text-align: center;
-            margin-top: 30px;
-        }
-
-        .qr-code img {
-            width: 150px;
-            height: 150px;
-        }
-
-        /* Print overrides */
-        @media print {
-            .pdf-header {
-                border-bottom: 1px solid #3498db;
-                margin-bottom: 10mm;
-            }
         }
     </style>
 </head>
 <body>
-    <!-- Watermark -->
-    <div class="watermark">CBS Recruitment</div>
 
     <!-- Header -->
     <div class="pdf-header">
@@ -174,77 +113,62 @@
                 <strong>Ref:</strong> {{ $jobRequisition->reference_number ?? 'N/A' }}
             </div>
         </div>
+
+        <div class="qr-code-header">
+            <img src="{{ $qrCodeUrl }}" alt="QR Code">
+            <div class="qr-label">Scan to Apply</div>
+        </div>
     </div>
 
-    <!-- Key Details -->
-    <h2 class="section-title">Position Information</h2>
-    <table class="details-table">
-        <tr>
-            <th>Available Positions</th>
-            <td>{{ $jobRequisition->vacancies ?? 1 }}</td>
-        </tr>
-        <tr>
-            <th>Employment Type</th>
-            <td>{{ $jobRequisition->employment_type ?? 'Full-time' }}</td>
-        </tr>
-        <tr>
-            <th>Location</th>
-            <td>{{ $jobRequisition->location ?? 'Remote' }}</td>
-        </tr>
-        <tr>
-            <th>Posted Date</th>
-            <td>{{ $jobRequisition->created_at->format('M j, Y') }}</td>
-        </tr>
-        @if($jobRequisition->application_deadline)
-        <tr>
-            <th>Application Deadline</th>
-            <td>{{ $jobRequisition->application_deadline->format('M j, Y H:i') }}</td>
-        </tr>
-        @endif
-    </table>
+    <!-- Job Details -->
+    <h2>Job Information</h2>
+    <p><strong>Location:</strong> {{ $jobRequisition->location ?? 'N/A' }}</p>
+    <p><strong>Employment Type:</strong> {{ ucfirst($jobRequisition->employment_type ?? 'N/A') }}</p>
+    <p><strong>Application Deadline:</strong> 
+        {{ $jobRequisition->application_deadline 
+            ? $jobRequisition->application_deadline->format('M j, Y H:i') 
+            : 'N/A' }}
+    </p>
 
     <!-- Description -->
-    @if($jobRequisition->description)
-    <h2 class="section-title">About This Role</h2>
-    <div class="section-content">{!! $jobRequisition->description !!}</div>
+    <h2>Job Description</h2>
+    <p>{!! nl2br(e($jobRequisition->description)) !!}</p>
+
+    <!-- Responsibilities -->
+    @if(!empty($jobRequisition->responsibilities))
+        <h2>Key Responsibilities</h2>
+        <ul>
+            @foreach(explode("\n", $jobRequisition->responsibilities) as $resp)
+                @if(trim($resp) !== '')
+                    <li>{{ trim($resp) }}</li>
+                @endif
+            @endforeach
+        </ul>
     @endif
 
     <!-- Requirements -->
-    @if($jobRequisition->requirements)
-    <h2 class="section-title">Requirements</h2>
-    <div class="section-content">{!! $jobRequisition->requirements !!}</div>
+    @if(!empty($jobRequisition->requirements))
+        <h2>Requirements</h2>
+        <ul>
+            @foreach(explode("\n", $jobRequisition->requirements) as $req)
+                @if(trim($req) !== '')
+                    <li>{{ trim($req) }}</li>
+                @endif
+            @endforeach
+        </ul>
     @endif
 
-    <!-- Education -->
-    @if($jobRequisition->education_level)
-    <h2 class="section-title">Education Requirements</h2>
-    <p><strong>{{ $jobRequisition->education_level }}</strong></p>
+    <!-- Qualifications -->
+    @if(!empty($jobRequisition->qualifications))
+        <h2>Qualifications</h2>
+        <ul>
+            @foreach(explode("\n", $jobRequisition->qualifications) as $qual)
+                @if(trim($qual) !== '')
+                    <li>{{ trim($qual) }}</li>
+                @endif
+            @endforeach
+        </ul>
     @endif
 
-    <!-- Skills -->
-    @if($jobRequisition->skills && $jobRequisition->skills->count())
-    <h2 class="section-title">Required Skills</h2>
-    <div class="tags-wrapper">
-        @foreach($jobRequisition->skills as $skill)
-            <span class="tag">{{ $skill->name }}</span>
-        @endforeach
-    </div>
-    @endif
-
-    <!-- Areas of Study -->
-    @if($jobRequisition->required_areas_of_study && !empty($jobRequisition->required_areas_of_study))
-    <h2 class="section-title">Areas of Study</h2>
-    <div class="tags-wrapper">
-        @foreach($jobRequisition->required_areas_of_study as $area)
-            <span class="tag">{{ is_array($area) ? ($area['name'] ?? $area['title'] ?? 'Unknown') : $area }}</span>
-        @endforeach
-    </div>
-    @endif
-
-    <!-- QR Code at bottom -->
-    <div class="qr-code">
-        <img src="{{ $qrCodeUrl }}" alt="QR Code"><br>
-        <small>Scan to Apply</small>
-    </div>
 </body>
 </html>
