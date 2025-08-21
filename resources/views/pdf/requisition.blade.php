@@ -19,10 +19,12 @@
             position: relative;
         }
 
+        /* Header */
         .pdf-header {
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
+            position: relative;
             border-bottom: 3px solid #3498db;
             padding-bottom: 10px;
             margin-bottom: 20px;
@@ -30,16 +32,17 @@
 
         .company-logo img {
             max-height: 80px;
+            display: block;
+            margin: 0 auto 10px auto;
         }
 
         .job-info {
-            flex-grow: 1;
-            padding: 0 15px;
+            text-align: center;
         }
 
         .job-info h1 {
             font-size: 22px;
-            margin: 0;
+            margin: 0 0 5px 0;
             color: #2c3e50;
         }
 
@@ -49,8 +52,10 @@
         }
 
         .qr-code-header {
+            position: absolute;
+            top: 0;
+            right: 0;
             text-align: center;
-            flex: 0 0 120px;
         }
 
         .qr-code-header img {
@@ -88,7 +93,6 @@
             margin-bottom: 4px;
         }
 
-        /* Skills & Areas of Study as colored tags */
         .tag {
             display: inline-block;
             background-color: #d6eaf8;
@@ -128,16 +132,18 @@
 
     <!-- Header -->
     <div class="pdf-header">
-        <div class="company-logo">
-            <img src="{{ public_path('assets/img/CBS logo.png') }}" alt="Company Logo">
-        </div>
+        <div>
+            <div class="company-logo">
+                <img src="{{ public_path('assets/img/CBS logo.png') }}" alt="Company Logo">
+            </div>
 
-        <div class="job-info">
-            <h1>{{ $jobRequisition->title }}</h1>
-            <div class="job-meta">
-                <strong>Department:</strong> {{ $jobRequisition->department->name ?? 'N/A' }} |
-                <strong>Ref:</strong> {{ $jobRequisition->reference_number ?? 'N/A' }} |
-                <strong>Deadline:</strong> {{ $jobRequisition->application_deadline->format('M j, Y H:i') }}
+            <div class="job-info">
+                <h1>{{ $jobRequisition->title }}</h1>
+                <div class="job-meta">
+                    <strong>Department:</strong> {{ $jobRequisition->department->name ?? 'N/A' }} |
+                    <strong>Ref:</strong> {{ $jobRequisition->reference_number ?? 'N/A' }} |
+                    <strong>Deadline:</strong> {{ $jobRequisition->application_deadline->format('M j, Y H:i') }}
+                </div>
             </div>
         </div>
 
