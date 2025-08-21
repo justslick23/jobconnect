@@ -55,20 +55,22 @@ class JobApplicationController extends Controller
         $user = Auth::user();
     
         // Base query with eager loading of related user, job requisition, and score
-        $query = JobApplication::with(['user', 'jobRequisition', 'score']);
-    
-        // Filter by job requisition if provided in request
-        if ($request->filled('job_requisition_id')) {
-            $query->where('job_requisition_id', $request->job_requisition_id);
-        }
-    
-        // If logged in user is applicant, only show their own applications
-        if ($user->isApplicant()) {
-            $query->where('user_id', $user->id);
-        }
-    
-        // Get the latest applications
-        $applications = $query->latest()->get();
+     // Base query WITHOUT eager loading
+$query = JobApplication::query();
+
+// Filter by job requisition if provided in request
+if ($request->filled('job_requisition_id')) {
+    $query->where('job_requisition_id', $request->job_requisition_id);
+}
+
+// If logged-in user is an applicant, only show their own applications
+if ($user->isApplicant()) {
+    $query->where('user_id', $user->id);
+}
+
+// Execute query
+$applications = $query->get();
+
     
         // For applicants: get only job requisitions they applied to
         // For others (HR/admin): get all job requisitions ordered by creation date

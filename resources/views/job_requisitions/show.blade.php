@@ -36,18 +36,22 @@
                         </span>
                     </div>
                     <div class="col-lg-4 text-end">
-                        @if(auth()->user()->isApplicant())
-                        <a href="{{ route('job-applications.create', ['job_requisition' => $jobRequisition->id]) }}" 
-                           class="btn btn-primary btn-lg">
-                            <i class="fas fa-paper-plane me-2"></i>Apply Now
-                        </a>
+                        @php
+                            $isClosed = $jobRequisition->job_status === 'closed';
+                        @endphp
+                        @if(auth()->user()->isApplicant() && !$isClosed)
+                            <a href="{{ route('job-applications.create', ['job_requisition' => $jobRequisition->id]) }}" 
+                               class="btn btn-primary btn-lg mb-2">
+                                <i class="fas fa-paper-plane me-2"></i>Apply Now
+                            </a>
+                        @elseif($isClosed)
+                            <span class="badge bg-danger py-2 px-3 mb-2">Applications Closed</span>
                         @endif
 
                         <a href="{{ route('job-requisitions.download-pdf', $jobRequisition->id) }}" 
                             class="btn btn-outline-primary w-100 mb-3">
                              <i class="fas fa-download me-2"></i>Download Job Details (PDF)
                          </a>
-                         
                     </div>
                 </div>
             </div>
@@ -156,32 +160,34 @@
                         @php
                             $hasApplied = auth()->check() && $jobRequisition->applications()->where('user_id', auth()->id())->exists();
                         @endphp
-                        
-                        @if($hasApplied)
-                            <div class="text-center">
+
+                        <div class="text-center mb-3">
+                            @if($isClosed)
+                                <i class="fas fa-times-circle text-danger fs-1 mb-3"></i>
+                                <h5 class="fw-bold text-danger mb-2">Applications Closed</h5>
+                                <p class="text-muted">Unfortunately, this job is no longer accepting applications.</p>
+                            @elseif($hasApplied)
                                 <i class="fas fa-check-circle text-success fs-1 mb-3"></i>
                                 <h5 class="text-success fw-bold mb-2">Application Submitted!</h5>
                                 <p class="text-muted">We've received your application and will be in touch soon.</p>
-                            </div>
-                        @elseif((!auth()->check() || (method_exists(auth()->user(), 'isApplicant') && auth()->user()->isApplicant())))
-                            <div class="text-center mb-3">
+                            @elseif(auth()->check() && method_exists(auth()->user(), 'isApplicant') && auth()->user()->isApplicant())
                                 <i class="fas fa-paper-plane text-primary fs-1 mb-3"></i>
                                 <h5 class="fw-bold mb-2">Ready to Join Us?</h5>
                                 <p class="text-muted mb-3">Take the next step in your career journey.</p>
-                            </div>
-                            <a href="{{ route('job-applications.create', ['job_requisition' => $jobRequisition->id]) }}" 
-                               class="btn btn-primary w-100 py-3 mb-3">
-                                <i class="fas fa-paper-plane me-2"></i>Submit Application
+                                <a href="{{ route('job-applications.create', ['job_requisition' => $jobRequisition->id]) }}" 
+                                   class="btn btn-primary w-100 py-3 mb-3">
+                                    <i class="fas fa-paper-plane me-2"></i>Submit Application
+                                </a>
+                            @endif
+
+                            <a href="{{ route('job-requisitions.index') }}" class="btn btn-outline-secondary w-100">
+                                <i class="fas fa-arrow-left me-2"></i>Browse More Jobs
                             </a>
-                        @endif
-                        
-                        <a href="{{ route('job-requisitions.index') }}" class="btn btn-outline-secondary w-100">
-                            <i class="fas fa-arrow-left me-2"></i>Browse More Jobs
-                        </a>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Job Information -->
+                <!-- Job Information Card -->
                 <div class="card border-0 shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">
                         <h6 class="mb-0 fw-bold">
@@ -197,8 +203,7 @@
                                 <span class="fw-semibold">{{ $jobRequisition->education_level ?? 'Not specified' }}</span>
                             </div>
                         </div>
-                        
-                        <!-- Areas of Study Section -->
+
                         @if($jobRequisition->required_areas_of_study && !empty($jobRequisition->required_areas_of_study))
                         <div class="row mb-3">
                             <div class="col-4">
@@ -213,7 +218,7 @@
                             </div>
                         </div>
                         @endif
-                        
+
                         <div class="row mb-3">
                             <div class="col-4">
                                 <small class="text-muted">Posted</small>
@@ -222,7 +227,7 @@
                                 <span class="fw-semibold">{{ $jobRequisition->created_at->format('M j, Y') }}</span>
                             </div>
                         </div>
-                        
+
                         @if($jobRequisition->application_deadline)
                         <div class="row">
                             <div class="col-4">
@@ -237,7 +242,7 @@
                     </div>
                 </div>
 
-                <!-- Share Job -->
+                <!-- Share Job Card -->
                 <div class="card border-0 shadow-sm">
                     <div class="card-header bg-light">
                         <h6 class="mb-0 fw-bold">

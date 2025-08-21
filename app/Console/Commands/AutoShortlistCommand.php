@@ -40,20 +40,27 @@ class AutoShortlistCommand extends Command
                      ? (float) $this->option('threshold') 
                      : ($settings->threshold ?? 70); // default fallback
 
-        $query = JobRequisition::query();
+       $query = JobRequisition::query();
 
-        if ($requisitionId) {
-            $query->where('id', $requisitionId);
-            
-            if (!$force) {
-                $query->where('auto_shortlisting_completed', false);
-            }
-        } else {
-            $query->where('application_deadline', '<', now())
-                  ->where('auto_shortlisting_completed', false);
-        }
+                    // Filter by specific requisition ID if provided
+                    if ($requisitionId) {
+                        $query->where('id', $requisitionId);
 
-        $requisitions = $query->get();
+                        if (!$force) {
+                            $query->where('auto_shortlisting_completed', false);
+                        }
+
+                        // Only run if job is closed
+                        $query->where('job_status', 'closed');
+
+                    } else {
+                        // Only closed jobs that haven't been short-listed yet
+                        $query->where('job_status', 'closed')
+                            ->where('auto_shortlisting_completed', false);
+                    }
+
+                    $requisitions = $query->get();
+
 
         if ($requisitions->isEmpty()) {
             $msg = $requisitionId 
