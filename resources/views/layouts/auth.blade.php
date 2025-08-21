@@ -4,7 +4,7 @@
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <title>{{ config('app.name', 'Kaiadmin') }} - Admin Dashboard</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
-        <link rel="icon" href="{{ asset('assets/img/kaiadmin/favicon.ico') }}" type="image/x-icon" />
+        <link rel="icon" href="{{ asset('assets/img/CBS logo.png') }}"  />
     
         {{-- Fonts and icons --}}
         <script src="{{ asset('assets/js/plugin/webfont/webfont.min.js') }}"></script>

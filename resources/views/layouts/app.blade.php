@@ -4,7 +4,7 @@
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <title>@yield('title') | CBS Recruitment Portal</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
-        <link rel="icon" href="{{ asset('/img/icons/cbs-logo.png') }}"  />
+        <link rel="icon" href="{{ asset('assets/img/CBS logo.png') }}"  />
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         {{-- Fonts and icons --}}
