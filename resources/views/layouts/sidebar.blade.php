@@ -4,7 +4,7 @@
         <br><br>
         <div class="logo-header text-center py-3">
             <a href="{{ auth()->check() ? route('dashboard') : route('home') }}">
-                <img src="{{ asset('img/icons/cbs-logo.png') }}" alt="CBS Logo" class="img-fluid" style="max-height: 100px;">
+                <img src="{{ asset('img/icons/cbs-logo.png') }}" alt="CBS Logo" class="img-fluid d-none d-md-block" style="max-height: 100px;">
             </a>
 
             <!-- Sidebar toggles -->
