@@ -17,25 +17,32 @@ Route::get('/', [HomeController::class, 'home'])->name('home');
 
 Auth::routes();
 
-// Authenticated routes
+// ===============================================
+// GUEST-ACCESSIBLE ROUTES (moved outside auth middleware)
+// ===============================================
+
+// Public job browsing - accessible to everyone
+Route::get('/jobs', [JobRequisitionController::class, 'index'])->name('job-requisitions.index');
+Route::get('/jobs/{slugUuid}', [JobRequisitionController::class, 'show'])->name('job-requisitions.show');
+
+// Public job PDF downloads
+Route::get('job-requisitions/{id}/download-pdf', [JobRequisitionController::class, 'downloadPdf'])
+    ->name('job-requisitions.download-pdf');
+
+// ===============================================
+// AUTHENTICATED ROUTES (everything else stays the same)
+// ===============================================
 Route::middleware(['auth'])->group(function () {
 
     // Dashboard
     Route::get('/dashboard', [HomeController::class, 'dashboard'])->name('dashboard');
 
-    // Job Requisitions
-// Job Requisitions Routes
-Route::get('/jobs', [JobRequisitionController::class, 'index'])->name('job-requisitions.index');
-Route::get('/jobs/create', [JobRequisitionController::class, 'create'])->name('job-requisitions.create');
-Route::post('/jobs', [JobRequisitionController::class, 'store'])->name('job-requisitions.store');
-Route::get('/jobs/{slugUuid}', [JobRequisitionController::class, 'show'])
-    ->name('job-requisitions.show');
+    // Job Requisitions Management (for creating/editing jobs)
+    Route::get('/jobs/create', [JobRequisitionController::class, 'create'])->name('job-requisitions.create');
+    Route::post('/jobs', [JobRequisitionController::class, 'store'])->name('job-requisitions.store');
     Route::get('/{jobRequisition}/edit', [JobRequisitionController::class, 'edit'])->name('job-requisitions.edit');
     Route::put('/{jobRequisition}', [JobRequisitionController::class, 'update'])->name('job-requisitions.update');
-Route::delete('/jobs/{jobRequisition}', [JobRequisitionController::class, 'destroy'])->name('job-requisitions.destroy');
-
-Route::get('job-requisitions/{id}/download-pdf', [JobRequisitionController::class, 'downloadPdf'])
-->name('job-requisitions.download-pdf');
+    Route::delete('/jobs/{jobRequisition}', [JobRequisitionController::class, 'destroy'])->name('job-requisitions.destroy');
 
     Route::post('/job/{jobRequisition}/approve', [JobRequisitionController::class, 'approve'])->name('job-requisitions.approve');
     Route::post('/job/{jobRequisition}/reject', [JobRequisitionController::class, 'reject'])->name('job-requisitions.reject');
@@ -79,6 +86,7 @@ Route::get('job-requisitions/{id}/download-pdf', [JobRequisitionController::clas
     Route::get('/interviews/{interview}', [InterviewController::class, 'show'])->name('interviews.show');
     Route::post('/interviews/{interview}/score', [InterviewController::class, 'submitScore'])->name('interviews.score.store');
 });
+
 // Department routes (only for HR/Admin)
 Route::middleware(['auth'])->group(function () {
     Route::get('/departments', [DepartmentController::class, 'index'])->name('departments.index');

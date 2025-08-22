@@ -51,24 +51,6 @@
             color: #555;
         }
 
-        .qr-code-header {
-            position: absolute;
-            top: 0;
-            right: 0;
-            text-align: center;
-        }
-
-        .qr-code-header img {
-            width: 100px;
-            height: 100px;
-            margin-bottom: 5px;
-        }
-
-        .qr-code-header .qr-label {
-            font-size: 8pt;
-            color: #555;
-        }
-
         .section {
             margin-bottom: 20px;
         }
@@ -114,44 +96,46 @@
         }
 
         /* Watermark */
-        .watermark {
-            position: fixed;
-            top: 35%;
-            left: 20%;
-            font-size: 60px;
-            color: rgba(200,200,200,0.15);
-            transform: rotate(-30deg);
-            z-index: -1;
-            white-space: nowrap;
-        }
+ /* Watermark */
+.watermark {
+    position: fixed;
+    top: 30%;
+    left: 20%;
+    width: 60%;
+    text-align: center;
+    z-index: -1;
+    opacity: 0.1; /* faint effect */
+}
+
+.watermark img {
+    width: 100%;
+    height: auto;
+}
+
     </style>
 </head>
 <body>
     <!-- Watermark -->
-    <div class="watermark">CBS Recruitment</div>
-
-    <!-- Header -->
-    <div class="pdf-header">
-        <div>
-            <div class="company-logo">
-                <img src="{{ asset('assets/img/CBS logo.png') }}" alt="Company Logo">
-            </div>
-
-            <div class="job-info">
-                <h1>{{ $jobRequisition->title }}</h1>
-                <div class="job-meta">
-                    <strong>Department:</strong> {{ $jobRequisition->department->name ?? 'N/A' }} |
-                    <strong>Ref:</strong> {{ $jobRequisition->reference_number ?? 'N/A' }} |
-                    <strong>Deadline:</strong> {{ $jobRequisition->application_deadline->format('M j, Y H:i') }}
-                </div>
-            </div>
+    <div class="watermark">      <img src="{{ asset('assets/img/CBS logo.png') }}" alt="Company Logo">
+    </div>
+<!-- Header -->
+<div class="pdf-header" style="justify-content: flex-start; text-align: left;">
+    <div>
+        <div class="company-logo" style="text-align: left;">
+            <img src="{{ asset('assets/img/CBS logo.png') }}" alt="Company Logo">
         </div>
 
-        <div class="qr-code-header">
-            <img src="{{ $qrCodeUrl }}" alt="QR Code">
-            <div class="qr-label">Scan to Apply</div>
+        <div class="job-info" style="text-align: left;">
+            <h1 style="margin-top: 5px;">{{ $jobRequisition->title }}</h1>
+            <div class="job-meta">
+                <strong>Department:</strong> {{ $jobRequisition->department->name ?? 'N/A' }} |
+                <strong>Deadline:</strong> {{ $jobRequisition->application_deadline->format('M j, Y H:i') }} |
+                <strong>Education Level:</strong> {{ $jobRequisition->education_level ?? 'N/A' }}
+            </div>
         </div>
     </div>
+</div>
+
 
     <!-- Job Description -->
     <div class="section">
@@ -184,6 +168,16 @@
         @endforeach
     </div>
     @endif
+
+    <!-- How to Apply -->
+    <div class="section">
+        <h2>How to Apply</h2>
+        <p>Scan the QR code below or visit our careers page to submit your application.</p>
+        <div style="text-align:center; margin-top:15px;">
+            <img src="{{ $qrCodeUrl }}" alt="QR Code" style="width:120px; height:120px;">
+            <div style="font-size:10pt; color:#555;">Scan to Apply</div>
+        </div>
+    </div>
 
     <!-- Footer -->
     <div class="footer">

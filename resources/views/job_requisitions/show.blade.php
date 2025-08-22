@@ -5,37 +5,57 @@
 <div class="container">
     <div class="page-inner">
         
-        <!-- Header Section -->
-        <div class="card mb-4 border-0 bg-light">
-            <div class="card-body p-4">
-                <nav aria-label="breadcrumb" class="mb-3">
-                    <ol class="breadcrumb mb-0 bg-transparent p-0">
-                        <li class="breadcrumb-item">
-                            <a href="{{ route('job-requisitions.index') }}" class="text-decoration-none">
-                                <i class="fas fa-briefcase me-1"></i>Jobs
-                            </a>
-                        </li>
-                        <li class="breadcrumb-item active">Job Details</li>
-                    </ol>
-                </nav>
-                @include('partials.alerts')
+        <!-- Enhanced Breadcrumb -->
+        <div class="page-header">
+            <h3 class="fw-bold mb-3">{{ $jobRequisition->title ?? 'Job Details' }}</h3>
+            <ul class="breadcrumbs mb-3">
+                <li class="nav-home">
+                    <a href="{{ route('dashboard') }}">
+                        <i class="icon-home"></i>
+                    </a>
+                </li>
+                <li class="separator">
+                    <i class="icon-arrow-right"></i>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ route('job-requisitions.index') }}">Jobs</a>
+                </li>
+                <li class="separator">
+                    <i class="icon-arrow-right"></i>
+                </li>
+                <li class="nav-item">
+                    <span>Job Details</span>
+                </li>
+            </ul>
+        </div>
 
-                
-                <div class="row align-items-center">
-                    <div class="col-lg-8">
-                        <h2 class="fw-bold mb-2">{{ $jobRequisition->title ?? 'Untitled Position' }}</h2>
-                        <div class="d-flex align-items-center mb-3">
-                            <i class="fas fa-building text-primary me-2"></i>
-                            <span class="text-muted me-3">{{ $jobRequisition->department->name ?? 'Department' }}</span>
-                            @if($jobRequisition->reference_number)
-                                <span class="badge bg-secondary">ID: {{ $jobRequisition->reference_number }}</span>
-                            @endif
+        @include('partials.alerts')
+
+        <!-- Main Job Header Card -->
+        <div class="card card-round">
+            <div class="card-header">
+                <div class="card-head-row card-tools-still-right">
+                    <div class="card-title">
+                        <div class="d-flex align-items-center">
+                            <div class="avatar avatar-lg me-3">
+                                <span class="avatar-title rounded-circle bg-primary">
+                                    <i class="fas fa-briefcase fa-lg text-white"></i>
+                                </span>
+                            </div>
+                            <div>
+                                <h2 class="card-sub mb-1">{{ $jobRequisition->title ?? 'Untitled Position' }}</h2>
+                                <p class="text-muted mb-0">
+                                    <i class="fas fa-building me-1"></i>{{ $jobRequisition->department->name ?? 'Department' }}
+                                    @if($jobRequisition->reference_number)
+                                        <span class="ms-3">
+                                            <i class="fas fa-tag me-1"></i>{{ $jobRequisition->reference_number }}
+                                        </span>
+                                    @endif
+                                </p>
+                            </div>
                         </div>
-                        <span class="badge bg-{{ $jobRequisition->approval_status === 'approved' ? 'success' : 'warning' }} px-3 py-2">
-                            {{ $jobRequisition->approval_status === 'approved' ? 'Now Hiring' : 'Under Review' }}
-                        </span>
                     </div>
-                    <div class="col-lg-4 text-end">
+                    <div class="card-tools">
                         @php
                             $isClosed = $jobRequisition->job_status === 'closed';
                             $isGuest = !auth()->check();
@@ -44,68 +64,114 @@
                         
                         @if(!$isClosed)
                             @if($isGuest)
-                                <a href="{{ route('login') }}" 
-                                   class="btn btn-primary btn-lg mb-2">
-                                    <i class="fas fa-sign-in-alt me-2"></i>Login to Apply
+                                <a href="{{ route('login') }}" class="btn btn-primary btn-round me-2">
+                                    <i class="fas fa-sign-in-alt me-1"></i>Login to Apply
                                 </a>
-                                <div class="small text-muted mb-2">
-                                    Don't have an account? 
-                                    <a href="{{ route('register') }}" class="text-decoration-none">Register here</a>
-                                </div>
                             @elseif($isApplicant)
                                 <a href="{{ route('job-applications.create', ['job_requisition' => $jobRequisition->id]) }}" 
-                                   class="btn btn-primary btn-lg mb-2">
-                                    <i class="fas fa-paper-plane me-2"></i>Apply Now
+                                   class="btn btn-primary btn-round me-2">
+                                    <i class="fas fa-paper-plane me-1"></i>Apply Now
                                 </a>
                             @endif
-                        @else
-                            <span class="badge bg-danger py-2 px-3 mb-2">Applications Closed</span>
                         @endif
-
+                        
                         <a href="{{ route('job-requisitions.download-pdf', $jobRequisition->id) }}" 
-                            class="btn btn-outline-primary w-100 mb-3">
-                             <i class="fas fa-download me-2"></i>Download Job Details (PDF)
-                         </a>
+                           class="btn btn-info btn-round">
+                            <i class="fas fa-download me-1"></i>Download PDF
+                        </a>
                     </div>
+                </div>
+                
+                <!-- Status Badges -->
+                <div class="mt-3">
+                    <span class="badge badge-{{ $jobRequisition->approval_status === 'approved' ? 'success' : 'warning' }} me-2">
+                        <i class="fas fa-{{ $jobRequisition->approval_status === 'approved' ? 'check-circle' : 'clock' }} me-1"></i>
+                        {{ $jobRequisition->approval_status === 'approved' ? 'Now Hiring' : 'Under Review' }}
+                    </span>
+                    @if($isClosed)
+                        <span class="badge badge-danger">
+                            <i class="fas fa-times-circle me-1"></i>Applications Closed
+                        </span>
+                    @endif
                 </div>
             </div>
         </div>
 
-        <!-- Quick Stats -->
-        <div class="row g-3 mb-4">
-            <div class="col-md-3 col-6">
-                <div class="card text-center border-0 shadow-sm">
-                    <div class="card-body py-3">
-                        <i class="fas fa-users text-primary fs-4 mb-2"></i>
-                        <h5 class="fw-bold mb-1">{{ $jobRequisition->vacancies ?? 1 }}</h5>
-                        <small class="text-muted">Positions</small>
+        <!-- Job Stats Row -->
+        <div class="row">
+            <div class="col-sm-6 col-md-3">
+                <div class="card card-stats card-round">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-icon">
+                                <div class="icon-big text-center icon-primary bubble-shadow-small">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                            </div>
+                            <div class="col col-stats ms-3 ms-sm-0">
+                                <div class="numbers">
+                                    <p class="card-category">Positions</p>
+                                    <h4 class="card-title">{{ $jobRequisition->vacancies ?? 1 }}</h4>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 col-6">
-                <div class="card text-center border-0 shadow-sm">
-                    <div class="card-body py-3">
-                        <i class="fas fa-star text-warning fs-4 mb-2"></i>
-                        <h5 class="fw-bold mb-1">{{ $jobRequisition->min_experience ?? 0 }}+</h5>
-                        <small class="text-muted">Years Exp.</small>
+            <div class="col-sm-6 col-md-3">
+                <div class="card card-stats card-round">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-icon">
+                                <div class="icon-big text-center icon-warning bubble-shadow-small">
+                                    <i class="fas fa-star"></i>
+                                </div>
+                            </div>
+                            <div class="col col-stats ms-3 ms-sm-0">
+                                <div class="numbers">
+                                    <p class="card-category">Experience</p>
+                                    <h4 class="card-title">{{ $jobRequisition->min_experience ?? 0 }}+ Years</h4>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 col-6">
-                <div class="card text-center border-0 shadow-sm">
-                    <div class="card-body py-3">
-                        <i class="fas fa-clock text-info fs-4 mb-2"></i>
-                        <h5 class="fw-bold mb-1">{{ ucfirst(substr($jobRequisition->employment_type ?? 'Full-time', 0, 10)) }}</h5>
-                        <small class="text-muted">Type</small>
+            <div class="col-sm-6 col-md-3">
+                <div class="card card-stats card-round">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-icon">
+                                <div class="icon-big text-center icon-info bubble-shadow-small">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                            </div>
+                            <div class="col col-stats ms-3 ms-sm-0">
+                                <div class="numbers">
+                                    <p class="card-category">Type</p>
+                                    <h4 class="card-title">{{ ucfirst(substr($jobRequisition->employment_type ?? 'Full-time', 0, 10)) }}</h4>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 col-6">
-                <div class="card text-center border-0 shadow-sm">
-                    <div class="card-body py-3">
-                        <i class="fas fa-map-marker-alt text-success fs-4 mb-2"></i>
-                        <h5 class="fw-bold mb-1">{{ Str::limit($jobRequisition->location ?? 'Remote', 10) }}</h5>
-                        <small class="text-muted">Location</small>
+            <div class="col-sm-6 col-md-3">
+                <div class="card card-stats card-round">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-icon">
+                                <div class="icon-big text-center icon-success bubble-shadow-small">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                </div>
+                            </div>
+                            <div class="col col-stats ms-3 ms-sm-0">
+                                <div class="numbers">
+                                    <p class="card-category">Location</p>
+                                    <h4 class="card-title">{{ Str::limit($jobRequisition->location ?? 'Remote', 12) }}</h4>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -117,13 +183,15 @@
                 
                 <!-- Job Description -->
                 @if($jobRequisition->description)
-                <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-header bg-white border-0 pb-0">
-                        <h5 class="fw-bold text-dark">
-                            <i class="fas fa-file-text text-primary me-2"></i>About This Role
-                        </h5>
+                <div class="card card-round">
+                    <div class="card-header">
+                        <div class="card-head-row">
+                            <div class="card-title">
+                                <i class="fas fa-file-text text-primary me-2"></i>About This Role
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body pt-3">
+                    <div class="card-body">
                         <div class="content-text">
                             {!! $jobRequisition->description !!}
                         </div>
@@ -133,13 +201,15 @@
 
                 <!-- Requirements -->
                 @if($jobRequisition->requirements)
-                <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-header bg-white border-0 pb-0">
-                        <h5 class="fw-bold text-dark">
-                            <i class="fas fa-check-circle text-success me-2"></i>Requirements
-                        </h5>
+                <div class="card card-round">
+                    <div class="card-header">
+                        <div class="card-head-row">
+                            <div class="card-title">
+                                <i class="fas fa-check-circle text-success me-2"></i>Requirements
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body pt-3">
+                    <div class="card-body">
                         <div class="content-text">
                             {!! $jobRequisition->requirements !!}
                         </div>
@@ -149,16 +219,20 @@
 
                 <!-- Skills -->
                 @if($jobRequisition->skills && $jobRequisition->skills->count() > 0)
-                <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-header bg-white border-0 pb-0">
-                        <h5 class="fw-bold text-dark">
-                            <i class="fas fa-cogs text-info me-2"></i>Required Skills
-                        </h5>
+                <div class="card card-round">
+                    <div class="card-header">
+                        <div class="card-head-row">
+                            <div class="card-title">
+                                <i class="fas fa-cogs text-info me-2"></i>Required Skills
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body pt-3">
-                        @foreach($jobRequisition->skills as $skill)
-                        <span class="badge bg-primary text-white me-2 mb-2 px-3 py-2">{{ $skill->name }}</span>
-                        @endforeach
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach($jobRequisition->skills as $skill)
+                            <span class="badge badge-primary badge-round">{{ $skill->name }}</span>
+                            @endforeach
+                        </div>
                     </div>
                 </div>
                 @endif
@@ -168,169 +242,175 @@
             <!-- Sidebar -->
             <div class="col-lg-4">
                 
-                <!-- Application Card -->
-                <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-body p-4">
+                <!-- Application Status Card -->
+                <div class="card card-round">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fas fa-paper-plane me-2"></i>Application Status
+                        </div>
+                    </div>
+                    <div class="card-body text-center">
                         @php
                             $hasApplied = auth()->check() && $jobRequisition->applications()->where('user_id', auth()->id())->exists();
                         @endphp
 
-                        <div class="text-center mb-3">
-                            @if($isClosed)
-                                <i class="fas fa-times-circle text-danger fs-1 mb-3"></i>
-                                <h5 class="fw-bold text-danger mb-2">Applications Closed</h5>
-                                <p class="text-muted">Unfortunately, this job is no longer accepting applications.</p>
-                            @elseif($hasApplied)
-                                <i class="fas fa-check-circle text-success fs-1 mb-3"></i>
-                                <h5 class="text-success fw-bold mb-2">Application Submitted!</h5>
-                                <p class="text-muted">We've received your application and will be in touch soon.</p>
-                            @elseif($isGuest)
-                                <i class="fas fa-user-plus text-primary fs-1 mb-3"></i>
-                                <h5 class="fw-bold mb-2">Interested in This Role?</h5>
-                                <p class="text-muted mb-3">Join our platform to apply for this position and discover more opportunities.</p>
-                                
-                                <a href="{{ route('login') }}" class="btn btn-primary w-100 py-3 mb-2">
+                        @if($isClosed)
+                            <div class="avatar avatar-xxl mb-3">
+                                <span class="avatar-title rounded-circle bg-danger">
+                                    <i class="fas fa-times fa-2x text-white"></i>
+                                </span>
+                            </div>
+                            <h5 class="fw-bold text-danger mb-2">Applications Closed</h5>
+                            <p class="text-muted">Unfortunately, this job is no longer accepting applications.</p>
+                            
+                        @elseif($hasApplied)
+                            <div class="avatar avatar-xxl mb-3">
+                                <span class="avatar-title rounded-circle bg-success">
+                                    <i class="fas fa-check fa-2x text-white"></i>
+                                </span>
+                            </div>
+                            <h5 class="text-success fw-bold mb-2">Application Submitted!</h5>
+                            <p class="text-muted">We've received your application and will be in touch soon.</p>
+                            
+                        @elseif($isGuest)
+                            <div class="avatar avatar-xxl mb-3">
+                                <span class="avatar-title rounded-circle bg-primary">
+                                    <i class="fas fa-user-plus fa-2x text-white"></i>
+                                </span>
+                            </div>
+                            <h5 class="fw-bold mb-2">Interested in This Role?</h5>
+                            <p class="text-muted mb-3">Join our platform to apply for this position and discover more opportunities.</p>
+                            
+                            <div class="d-grid gap-2">
+                                <a href="{{ route('login') }}" class="btn btn-primary btn-round">
                                     <i class="fas fa-sign-in-alt me-2"></i>Login to Apply
                                 </a>
                                 
-                                <div class="text-center mb-3">
-                                    <small class="text-muted">New to our platform?</small>
-                                </div>
+                                <p class="text-muted small">New to our platform?</p>
                                 
-                                <a href="{{ route('register') }}" class="btn btn-outline-primary w-100 py-3 mb-3">
+                                <a href="{{ route('register') }}" class="btn btn-secondary btn-round">
                                     <i class="fas fa-user-plus me-2"></i>Create Account
                                 </a>
-                                
-                                <!-- Guest Benefits -->
-                                <div class="alert alert-info py-2 mb-3">
-                                    <small>
-                                        <i class="fas fa-info-circle me-1"></i>
-                                        <strong>Why join us?</strong> Track applications, get job alerts, and access exclusive opportunities.
-                                    </small>
-                                </div>
-                            @elseif($isApplicant)
-                                <i class="fas fa-paper-plane text-primary fs-1 mb-3"></i>
-                                <h5 class="fw-bold mb-2">Ready to Join Us?</h5>
-                                <p class="text-muted mb-3">Take the next step in your career journey.</p>
-                                <a href="{{ route('job-applications.create', ['job_requisition' => $jobRequisition->id]) }}" 
-                                   class="btn btn-primary w-100 py-3 mb-3">
-                                    <i class="fas fa-paper-plane me-2"></i>Submit Application
-                                </a>
-                            @endif
-
-                            <a href="{{ route('job-requisitions.index') }}" class="btn btn-outline-secondary w-100">
-                                <i class="fas fa-arrow-left me-2"></i>Browse More Jobs
+                            </div>
+                            
+                        @elseif($isApplicant)
+                            <div class="avatar avatar-xxl mb-3">
+                                <span class="avatar-title rounded-circle bg-primary">
+                                    <i class="fas fa-paper-plane fa-2x text-white"></i>
+                                </span>
+                            </div>
+                            <h5 class="fw-bold mb-2">Ready to Join Us?</h5>
+                            <p class="text-muted mb-3">Take the next step in your career journey.</p>
+                            <a href="{{ route('job-applications.create', ['job_requisition' => $jobRequisition->id]) }}" 
+                               class="btn btn-primary btn-round w-100 mb-3">
+                                <i class="fas fa-paper-plane me-2"></i>Submit Application
                             </a>
-                        </div>
+                        @endif
+
+                        <a href="{{ route('job-requisitions.index') }}" class="btn btn-outline-secondary btn-round w-100">
+                            <i class="fas fa-arrow-left me-2"></i>Browse More Jobs
+                        </a>
                     </div>
                 </div>
 
                 <!-- Job Information Card -->
-                <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <h6 class="mb-0 fw-bold">
+                <div class="card card-round">
+                    <div class="card-header">
+                        <div class="card-title">
                             <i class="fas fa-info-circle me-2"></i>Job Information
-                        </h6>
+                        </div>
                     </div>
                     <div class="card-body">
-                        <div class="row mb-3">
-                            <div class="col-4">
-                                <small class="text-muted">Education</small>
+                        <div class="info-user">
+                            <div class="row mb-3">
+                                <div class="col-4">
+                                    <small class="text-muted">Education</small>
+                                </div>
+                                <div class="col-8">
+                                    <span class="fw-semibold">{{ $jobRequisition->education_level ?? 'Not specified' }}</span>
+                                </div>
                             </div>
-                            <div class="col-8">
-                                <span class="fw-semibold">{{ $jobRequisition->education_level ?? 'Not specified' }}</span>
-                            </div>
-                        </div>
 
-                        @if($jobRequisition->required_areas_of_study && !empty($jobRequisition->required_areas_of_study))
-                        <div class="row mb-3">
-                            <div class="col-4">
-                                <small class="text-muted">Areas of Study</small>
+                            @if($jobRequisition->required_areas_of_study && !empty($jobRequisition->required_areas_of_study))
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <small class="text-muted d-block mb-2">Areas of Study</small>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        @foreach($jobRequisition->required_areas_of_study as $area)
+                                            <span class="badge badge-primary">
+                                                {{ is_array($area) ? ($area['name'] ?? $area['title'] ?? 'Unknown') : $area }}
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                </div>
                             </div>
-                            <div class="col-8">
-                                @foreach($jobRequisition->required_areas_of_study as $area)
-                                    <span class="badge bg-light text-dark me-1 mb-1">
-                                        {{ is_array($area) ? ($area['name'] ?? $area['title'] ?? 'Unknown') : $area }}
-                                    </span>
-                                @endforeach
-                            </div>
-                        </div>
-                        @endif
+                            @endif
 
-                        <div class="row mb-3">
-                            <div class="col-4">
-                                <small class="text-muted">Posted</small>
+                            <div class="row mb-3">
+                                <div class="col-4">
+                                    <small class="text-muted">Posted</small>
+                                </div>
+                                <div class="col-8">
+                                    <span class="fw-semibold">{{ $jobRequisition->created_at->format('M j, Y') }}</span>
+                                </div>
                             </div>
-                            <div class="col-8">
-                                <span class="fw-semibold">{{ $jobRequisition->created_at->format('M j, Y') }}</span>
-                            </div>
-                        </div>
 
-                        @if($jobRequisition->application_deadline)
-                        <div class="row">
-                            <div class="col-4">
-                                <small class="text-muted">Deadline</small>
+                            @if($jobRequisition->application_deadline)
+                            <div class="row">
+                                <div class="col-4">
+                                    <small class="text-muted">Deadline</small>
+                                </div>
+                                <div class="col-8">
+                                    <span class="fw-semibold text-danger">{{ $jobRequisition->application_deadline->format('M j, Y') }}</span>
+                                    <br>
+                                    <small class="text-muted">
+                                        {{ $jobRequisition->application_deadline->diffForHumans() }}
+                                        ({{ $jobRequisition->application_deadline->format('d M Y, H:i') }})
+                                    </small>
+                                                                    </div>
                             </div>
-                            <div class="col-8">
-                                <span class="fw-semibold text-danger">{{ $jobRequisition->application_deadline->format('M j, Y') }}</span>
-                                <br><small class="text-muted">{{ $jobRequisition->application_deadline->diffForHumans() }}</small>
-                            </div>
-                        </div>
-                        @endif
-                    </div>
-                </div>
-
-                <!-- Guest Call-to-Action Card (Only for guests) -->
-                @guest
-                <div class="card border-0 shadow-sm mb-4 bg-gradient">
-                    <div class="card-body p-4 text-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                        <div class="text-white">
-                            <i class="fas fa-rocket fs-2 mb-3"></i>
-                            <h6 class="fw-bold mb-2">Start Your Career Journey</h6>
-                            <p class="small mb-3 opacity-75">Join thousands of professionals finding their dream jobs</p>
-                            <a href="{{ route('register') }}" class="btn btn-light btn-sm fw-semibold">
-                                Get Started Free
-                            </a>
+                            @endif
                         </div>
                     </div>
                 </div>
-                @endguest
 
+                <!-- Guest Call-to-Action Card -->
+               
                 <!-- Share Job Card -->
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-light">
-                        <h6 class="mb-0 fw-bold">
-                            <i class="fas fa-share-alt text-primary me-2"></i>Share This Job
-                        </h6>
+                <div class="card card-round">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fas fa-share-alt me-2"></i>Share This Job
+                        </div>
                     </div>
                     <div class="card-body">
                         <p class="text-muted small mb-3">Help us find the right candidate</p>
                         <div class="d-grid gap-2">
-                            <button class="btn btn-outline-secondary btn-sm" 
+                            <button class="btn btn-outline-secondary btn-sm btn-round" 
                                     onclick="navigator.clipboard.writeText(window.location.href); this.innerHTML='<i class=\'fas fa-check me-1\'></i>Link Copied!'; setTimeout(() => this.innerHTML='<i class=\'fas fa-link me-1\'></i>Copy Link', 2000);">
                                 <i class="fas fa-link me-1"></i>Copy Link
                             </button>
-                            <div class="row g-2">
+                            
+                            <div class="row g-2 mt-2">
                                 <div class="col-4">
                                     <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ urlencode(request()->fullUrl()) }}" 
-                                       target="_blank" class="btn btn-primary btn-sm w-100">
-                                        <i class="fab fa-linkedin me-1"></i>LinkedIn
+                                       target="_blank" class="btn btn-primary btn-sm w-100 btn-round">
+                                        <i class="fab fa-linkedin"></i>
                                     </a>
                                 </div>
                                 <div class="col-4">
                                     <a href="https://twitter.com/intent/tweet?url={{ urlencode(request()->fullUrl()) }}&text={{ urlencode($jobRequisition->title) }}" 
-                                       target="_blank" class="btn btn-info btn-sm w-100">
-                                        <i class="fab fa-twitter me-1"></i>Twitter
+                                       target="_blank" class="btn btn-info btn-sm w-100 btn-round">
+                                        <i class="fab fa-twitter"></i>
                                     </a>
                                 </div>
                                 <div class="col-4">
                                     <a href="https://www.facebook.com/sharer/sharer.php?u={{ urlencode(request()->fullUrl()) }}" 
-                                       target="_blank" class="btn btn-primary btn-sm w-100" style="background-color:#3b5998; border-color:#3b5998;">
-                                        <i class="fab fa-facebook-f me-1"></i>Facebook
+                                       target="_blank" class="btn btn-secondary btn-sm w-100 btn-round">
+                                        <i class="fab fa-facebook-f"></i>
                                     </a>
                                 </div>
                             </div>
-                            
                         </div>
                     </div>
                 </div>
@@ -340,75 +420,4 @@
 
     </div>
 </div>
-
-<style>
-.card {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
-}
-
-.content-text {
-    line-height: 1.6;
-    color: #495057;
-}
-
-.content-text p {
-    margin-bottom: 1rem;
-}
-
-.content-text ul {
-    padding-left: 1.25rem;
-}
-
-.content-text li {
-    margin-bottom: 0.5rem;
-}
-
-.badge {
-    font-size: 0.875rem;
-    font-weight: 500;
-}
-
-.shadow-sm {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-}
-
-.fs-1 {
-    font-size: 3rem !important;
-}
-
-.fs-4 {
-    font-size: 1.5rem !important;
-}
-
-.fs-2 {
-    font-size: 2rem !important;
-}
-
-.bg-gradient {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-}
-
-.opacity-75 {
-    opacity: 0.75;
-}
-
-@media (max-width: 768px) {
-    .card-body {
-        padding: 1rem;
-    }
-    
-    .fs-1 {
-        font-size: 2.5rem !important;
-    }
-    
-    .fs-2 {
-        font-size: 1.75rem !important;
-    }
-}
-</style>
 @endsection

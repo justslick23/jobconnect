@@ -21,17 +21,22 @@ class JobRequisitionController extends Controller
      */
     public function index()
     {
-        //
-        $user = Auth::user();
-
-        if ($user->isHrAdmin() || $user->isManager()) {
-            $requisitions = JobRequisition::latest()->get();
+        if (Auth::check()) {
+            $user = Auth::user();
+    
+            if ($user->isHrAdmin()) {
+                $requisitions = JobRequisition::latest()->get();
+            } else {
+                $requisitions = JobRequisition::where('job_status', 'active')->get();
+            }
         } else {
+            // Guest users see only active job requisitions
             $requisitions = JobRequisition::where('job_status', 'active')->get();
         }
-
+    
         return view('job_requisitions.index', compact('requisitions'));
     }
+    
 
     /**
      * Show the form for creating a new resource.

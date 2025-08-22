@@ -119,64 +119,112 @@
             
             @if($jobs->count())
                 <!-- Filter Tabs -->
-                <div class="nav nav-pills justify-content-center mb-4 bg-light rounded-pill p-1" style="width: fit-content; margin: 0 auto;">
-                    <button class="nav-link active rounded-pill px-4" data-filter="all">
-                        All <span class="badge bg-primary ms-1">{{ $jobs->count() }}</span>
-                    </button>
-                    <button class="nav-link rounded-pill px-4" data-filter="Software Development">
-                        Development <span class="badge bg-primary ms-1">{{ $jobs->where('department.name', 'Software Development')->count() }}</span>
-                    </button>
-                    <button class="nav-link rounded-pill px-4" data-filter="Infrastructure Projects and Services">
-                        Infrastructure <span class="badge bg-primary ms-1">{{ $jobs->where('department.name', 'Infrastructure Projects and Services')->count() }}</span>
-                    </button>
-                    <button class="nav-link rounded-pill px-4" data-filter="Marketing">
-                        Marketing <span class="badge bg-primary ms-1">{{ $jobs->where('department.name', 'Marketing')->count() }}</span>
-                    </button>
-                    <button class="nav-link rounded-pill px-4" data-filter="Sales">
-                        Sales <span class="badge bg-primary ms-1">{{ $jobs->where('department.name', 'Sales')->count() }}</span>
+             <!-- Filter Tabs -->
+<div class="nav nav-pills justify-content-center mb-4 bg-light rounded-pill p-1" style="width: fit-content; margin: 0 auto;">
+    <button class="nav-link active rounded-pill px-4" data-filter="all">
+        All <span class="badge bg-primary ms-1">{{ $jobs->count() }}</span>
+    </button>
+
+    @foreach($departments as $department)
+        <button class="nav-link rounded-pill px-4" data-filter="{{ $department->name }}">
+            {{ $department->name }} 
+            <span class="badge bg-primary ms-1">{{ $jobs->where('department_id', $department->id)->count() }}</span>
+        </button>
+    @endforeach
+</div>
+
+
+                <!-- Jobs List -->
+                <!-- Jobs List -->
+<div class="jobs-container">
+    @foreach($jobs as $job)
+        <div class="job-item card border-0 shadow-sm mb-3 hover-lift" data-department="{{ $job->department->name }}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        {{-- Badges --}}
+                        <div class="d-flex gap-2 mb-2 flex-wrap">
+                            <span class="badge bg-{{ $job->employment_type == 'full-time' ? 'success' : 'warning' }}">
+                                {{ ucfirst($job->employment_type) }}
+                            </span>
+                       
+                         
+                        </div>
+
+                        {{-- Job title --}}
+                        <h5 class="card-title text-primary fw-bold mb-2">{{ $job->title }}</h5>
+
+                        {{-- Job meta --}}
+                        <div class="d-flex gap-3 text-muted small flex-wrap mb-3">
+                            <span><i class="fas fa-calendar-alt me-1"></i>
+                                {{ $job->application_deadline ? $job->application_deadline->format('M j, Y, H:i') : 'Open Application' }}
+                            </span>
+                            <span><i class="fas fa-users me-1"></i>
+                                {{ $job->vacancies }} {{ $job->vacancies == 1 ? 'position' : 'positions' }}
+                            </span>
+                            @if($job->required_education_level)
+    <span class="badge bg-info">
+        {{ $job->required_education_level }}
+    </span>
+@endif
+
+                            @if($job->required_areas_of_study && count($job->required_areas_of_study) > 0)
+                                <span><i class="fas fa-graduation-cap me-1"></i>
+                                    {{ implode(', ', array_map(fn($a) => is_array($a) ? ($a['name'] ?? $a['title'] ?? '') : $a, $job->required_areas_of_study)) }}
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Collapse button --}}
+                    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#job-{{ $job->id }}">
+                        <i class="fas fa-chevron-down"></i>
                     </button>
                 </div>
 
-                <!-- Jobs List -->
-                <div class="jobs-container">
-                    @foreach($jobs as $job)
-                        <div class="job-item card border-0 shadow-sm mb-3 hover-lift" data-department="{{ $job->department->name }}">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div class="flex-grow-1">
-                                        <div class="d-flex gap-2 mb-2">
-                                            <span class="badge bg-primary">{{ $job->department->name }}</span>
-                                            <span class="badge bg-{{ $job->employment_type == 'full-time' ? 'success' : 'warning' }}">
-                                                {{ ucfirst($job->employment_type) }}
-                                            </span>
-                                        </div>
-                                        <h5 class="card-title text-primary fw-bold mb-2">{{ $job->title }}</h5>
-                                        <div class="d-flex gap-3 text-muted small mb-3">
-                                            <span><i class="fas fa-calendar-alt me-1"></i>
-                                                {{ $job->application_deadline ? $job->application_deadline->format('M j, Y') : 'Open Application' }}
-                                            </span>
-                                            <span><i class="fas fa-users me-1"></i>
-                                                {{ $job->vacancies }} {{ $job->vacancies == 1 ? 'position' : 'positions' }}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#job-{{ $job->id }}">
-                                        <i class="fas fa-chevron-down"></i>
-                                    </button>
-                                </div>
-                
-                                <div class="collapse" id="job-{{ $job->id }}">
-                                    <div class="border-top pt-3 mt-3">
-                                        <div class="mb-3">{!! $job->description !!}</div>
-                                        <a href="{{ route('job-requisitions.show', $job->slug_uuid) }}" class="btn btn-primary">
-                                            <i class="fas fa-paper-plane me-2"></i>Apply Now
+                {{-- Collapsible details --}}
+                <div class="collapse" id="job-{{ $job->id }}">
+                    <div class="border-top pt-3 mt-3">
+                        <div class="mb-3">{!! $job->description !!}</div>
+                        <div class="mb-3">
+                            <h6 class="fw-bold text-primary">Additonal Requirements:</h6>
+                            {!! $job->requirements !!}</div>
+
+                         {{-- Job Skills --}}
+        @if($job->skills->count())
+        <div class="mb-3">
+            <h6 class="fw-bold text-primary">Required Skills:</h6>
+            <p class="mb-0">
+                {{ $job->skills->pluck('name')->implode(', ') }}
+            </p>
+        </div>
+    @endif
+
+                        <div class="d-flex flex-wrap gap-2">
+                            {{-- Always show View button --}}
+                            <a href="{{ route('job-requisitions.show', $job->slug_uuid) }}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye me-1"></i> View
+                            </a>
+
+                            @if(Auth::check())
+                                @if(auth()->user()->isApplicant())
+                                    @if($job->approval_status === 'approved' && $job->job_status === 'active' && !$job->applications()->where('status','hired')->exists())
+                                        <a href="{{ route('job-applications.create', ['job_requisition' => $job->id]) }}" 
+                                           class="btn btn-sm btn-primary">
+                                           <i class="fas fa-paper-plane me-1"></i> Apply Now
                                         </a>
-                                    </div>
-                                </div>
-                            </div>
+                                    @endif
+                                @endif
+                           
+                            @endif
                         </div>
-                    @endforeach
+                    </div>
                 </div>
+            </div>
+        </div>
+    @endforeach
+</div>
+
                 
             @else
                 <div class="text-center py-5">
