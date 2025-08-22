@@ -77,7 +77,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/job-applications/export-all', [JobApplicationController::class, 'exportAll'])
         ->name('job-applications.export-all');    
 
-        
+        Route::get('/application/download-attachment/{id}', [JobApplicationController::class, 'downloadAttachment'])
+    ->name('attachments.download');
 
     // Interviews
     Route::get('/interviews/schedule/{application}', [InterviewController::class, 'create'])->name('interviews.schedule');

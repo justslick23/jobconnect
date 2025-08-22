@@ -57,7 +57,7 @@ class ProfileController extends Controller
         $attachments = $user->attachments()->get()->groupBy('type');
         session(['return_to_application' => url()->current()]);
 
-        return view('applicant.profile_form', compact(
+        return view('applicant.update', compact(
             'profile', 'skills', 'education', 'experience', 'references', 'qualifications', 'attachments', 'user', 'jobRequisitionSkills'
         ));
     }

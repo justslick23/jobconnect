@@ -373,9 +373,10 @@
                             @endphp
                             <div class="d-flex align-items-center mb-2">
                                 <i class="{{ $iconClass }} me-2"></i>
-                                <a href="{{ Storage::url($attachment->file_path) }}" target="_blank" class="text-decoration-none">
+                                <a href="{{ route('attachments.download', $attachment->id) }}" target="_blank" class="text-decoration-none">
                                     {{ $attachment->type }}
                                 </a>
+                                
                             </div>
                         @endforeach
                     </div>

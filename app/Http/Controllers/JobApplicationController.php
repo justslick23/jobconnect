@@ -12,6 +12,7 @@ use App\Models\JobApplication;
 use App\Models\ShortlistingSetting;
 use App\Mail\JobApplicationSubmitted;
 use Carbon\Carbon;
+use App\Models\ApplicationAttachment;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Storage;
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -784,7 +786,17 @@ public function exportByJob($jobId)
         }
     }
 
-
+    public function downloadAttachment($id)
+    {
+        $attachment = ApplicationAttachment::findOrFail($id);
+    
+        if (!Storage::disk('public')->exists($attachment->file_path)) {
+            abort(404, "File not found on server.");
+        }
+    
+        return Storage::disk('public')->download($attachment->file_path, $attachment->original_name);
+    }
+    
 
   /**
      * Auto shortlist applications for a job requisition based on requirements.

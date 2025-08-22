@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <title>@yield('title') | CBS Recruitment Portal</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
-    
+
     {{-- Favicon --}}
     <link rel="icon" href="{{ asset('assets/img/CBS logo.png') }}" type="image/png" />
 
