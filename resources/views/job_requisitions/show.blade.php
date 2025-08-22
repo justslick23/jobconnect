@@ -102,28 +102,7 @@
             </div>
         </div>
 
-        <!-- Mobile Action Buttons -->
-        <div class="d-lg-none mb-3">
-            <div class="d-grid gap-2">
-                @if(!$isClosed)
-                    @if($isGuest)
-                        <a href="{{ route('login') }}" class="btn btn-primary btn-round">
-                            <i class="fas fa-sign-in-alt me-1"></i>Login to Apply
-                        </a>
-                    @elseif($isApplicant)
-                        <a href="{{ route('job-applications.create', ['job_requisition' => $jobRequisition->id]) }}" 
-                           class="btn btn-primary btn-round">
-                            <i class="fas fa-paper-plane me-1"></i>Apply Now
-                        </a>
-                    @endif
-                @endif
-                
-                <a href="{{ route('job-requisitions.download-pdf', $jobRequisition->id) }}" 
-                   class="btn btn-secondary btn-round">
-                    <i class="fas fa-download me-1"></i>Download PDF
-                </a>
-            </div>
-        </div>
+    
 
         <!-- Job Stats Row -->
         <div class="row">
