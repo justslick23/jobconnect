@@ -5,29 +5,7 @@
 <div class="container">
     <div class="page-inner">
         
-        <!-- Enhanced Breadcrumb -->
-        <div class="page-header">
-            <h3 class="fw-bold mb-3">{{ $jobRequisition->title ?? 'Job Details' }}</h3>
-            <ul class="breadcrumbs mb-3">
-                <li class="nav-home">
-                    <a href="{{ route('dashboard') }}">
-                        <i class="icon-home"></i>
-                    </a>
-                </li>
-                <li class="separator">
-                    <i class="icon-arrow-right"></i>
-                </li>
-                <li class="nav-item">
-                    <a href="{{ route('job-requisitions.index') }}">Jobs</a>
-                </li>
-                <li class="separator">
-                    <i class="icon-arrow-right"></i>
-                </li>
-                <li class="nav-item">
-                    <span>Job Details</span>
-                </li>
-            </ul>
-        </div>
+  
 
         @include('partials.alerts')
 
