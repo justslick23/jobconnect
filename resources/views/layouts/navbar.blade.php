@@ -31,36 +31,7 @@
             <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
 
                 <!-- Notifications -->
-                <li class="nav-item topbar-icon dropdown hidden-caret">
-                    <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                        <i class="fa fa-bell"></i>
-                        <span class="notification">3</span>
-                    </a>
-                    <ul class="dropdown-menu notif-box animated fadeIn">
-                        <li><div class="dropdown-title">You have 3 new notifications</div></li>
-                        <li>
-                            <div class="notif-scroll scrollbar-outer">
-                                <div class="notif-center">
-                                    <a href="#">
-                                        <div class="notif-icon notif-primary"><i class="fa fa-user-plus"></i></div>
-                                        <div class="notif-content">
-                                            <span class="block">New user registered</span>
-                                            <span class="time">5 minutes ago</span>
-                                        </div>
-                                    </a>
-                                    <a href="#">
-                                        <div class="notif-icon notif-success"><i class="fa fa-comment"></i></div>
-                                        <div class="notif-content">
-                                            <span class="block">New application received</span>
-                                            <span class="time">12 minutes ago</span>
-                                        </div>
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        <li><a class="see-all" href="#">See all notifications <i class="fa fa-angle-right"></i></a></li>
-                    </ul>
-                </li>
+            
 
                 <!-- User Profile Dropdown -->
                 @auth
