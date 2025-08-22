@@ -121,7 +121,9 @@
 <!-- Header -->
 <div class="pdf-header" style="justify-content: flex-start; text-align: left;">
     <div>
-      
+        <div class="company-logo" style="text-align: left;">
+            <img src="{{ asset('assets/img/CBS logo.png') }}" alt="Company Logo">
+        </div>
 
         <div class="job-info" style="text-align: left;">
             <h1 style="margin-top: 5px;">{{ $jobRequisition->title }}</h1>

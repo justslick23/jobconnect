@@ -9,6 +9,8 @@ use App\Models\ApplicantEducation;
 use App\Models\User;
 
 use App\Models\ApplicantExperience;
+use App\Models\JobRequisition;
+
 use App\Models\ApplicantReferences;
 use App\Models\ApplicantQualifications;
 use Illuminate\Http\Request;
@@ -37,6 +39,14 @@ class ProfileController extends Controller
     public function create()
     {
         $user = Auth::user();
+        $jobRequisitions = JobRequisition::all();
+
+        foreach($jobRequisitions as $jobRequisition) {
+            $jobRequisitionSkills = [];
+           if ($jobRequisition->skills && $jobRequisition->skills->isNotEmpty()) {
+        $jobRequisitionSkills = $jobRequisition->skills->pluck('name')->toArray();
+    } 
+}
 
         $profile = $user->profile ?? new ApplicantProfile();
         $skills = $user->skills()->get();
@@ -48,7 +58,7 @@ class ProfileController extends Controller
         session(['return_to_application' => url()->current()]);
 
         return view('applicant.profile_form', compact(
-            'profile', 'skills', 'education', 'experience', 'references', 'qualifications', 'attachments', 'user'
+            'profile', 'skills', 'education', 'experience', 'references', 'qualifications', 'attachments', 'user', 'jobRequisitionSkills'
         ));
     }
 

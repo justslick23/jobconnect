@@ -311,35 +311,150 @@
             </script>
             <!-- Skills -->
             <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Skills</div>
-                    <div class="card-subtitle mt-2">
-                        <small class="text-muted">Add skills that are relevant to the position you're applying for. Include both technical skills and soft skills that match the job requirements.</small>
-                    </div>
-                </div>
-                <div class="card-body">
-                    @php
-                        $skills = [];
-                        if (old('skills')) {
-                            $skills = is_string(old('skills')) ? explode(',', old('skills')) : old('skills');
-                        } elseif (isset($user) && $user->skills()->exists()) {
-                            $skills = $user->skills()->pluck('name')->toArray();
-                        }
-                        $skills = array_filter($skills); // Remove empty values
-                    @endphp
-                    <div id="skills-container" class="mb-2">
-                        @foreach($skills as $skill)
-                        <span class="badge badge-primary me-1 mb-1">
-                            {{ trim($skill) }} <span class="ms-1" style="cursor:pointer" onclick="removeSkill(this)">×</span>
-                        </span>
-                        @endforeach
-                    </div>
-                    <input type="text" id="skill-input" class="form-control" placeholder="Type relevant skills separated by commas (e.g., Project Management, Python, Leadership)">
-                    <input type="hidden" name="skills" id="skills-hidden" value="{{ implode(',', $skills) }}">
-                    @error('skills')<small class="form-text text-danger">{{ $message }}</small>@enderror
-                </div>
-            </div>
+    <div class="card-header">
+        <div class="card-title">Skills</div>
+        <div class="card-subtitle mt-2">
+            <small class="text-muted">Add skills that are relevant to the position you're applying for. Click on suggested skills below or type your own. Include both technical skills and soft skills that match the job requirements.</small>
+        </div>
+    </div>
+    <div class="card-body">
+        @php
+             $skills = [];
+    if (old('skills')) {
+        $skills = is_string(old('skills')) ? explode(',', old('skills')) : old('skills');
+    } elseif (isset($user) && $user->skills()->exists()) {
+        $skills = $user->skills()->pluck('name')->toArray();
+    }
 
+
+            
+            // Define skill categories
+            $skillCategories = [
+                'Job-Specific Skills' => $jobRequisitionSkills,
+                'Technical Skills' => [
+                    'Microsoft Office', 'Excel', 'PowerPoint', 'Word', 'Outlook',
+                    'Google Workspace', 'Data Analysis', 'SQL', 'Python', 'JavaScript',
+                    'HTML', 'CSS', 'Project Management', 'Agile/Scrum', 'Database Management',
+                    'Web Development', 'Mobile Development', 'Cloud Computing', 'Cybersecurity',
+                    'Network Administration', 'Systems Administration', 'IT Support',
+                    'Quality Assurance', 'Software Testing', 'Version Control (Git)',
+                    'Adobe Creative Suite', 'Graphic Design', 'UI/UX Design',
+                    'Digital Marketing', 'SEO/SEM', 'Social Media Management',
+                    'Content Management Systems', 'E-commerce', 'CRM Software',
+                    'ERP Systems', 'Accounting Software', 'Financial Analysis',
+                    'Budgeting', 'Procurement', 'Supply Chain Management'
+                ],
+                'Soft Skills' => [
+                    'Communication', 'Leadership', 'Teamwork', 'Problem Solving',
+                    'Critical Thinking', 'Time Management', 'Organization',
+                    'Adaptability', 'Creativity', 'Initiative', 'Attention to Detail',
+                    'Customer Service', 'Negotiation', 'Public Speaking',
+                    'Conflict Resolution', 'Decision Making', 'Strategic Planning',
+                    'Mentoring', 'Training & Development', 'Cross-functional Collaboration',
+                    'Stress Management', 'Multitasking', 'Cultural Awareness',
+                    'Emotional Intelligence', 'Active Listening', 'Presentation Skills',
+                    'Research Skills', 'Analytical Thinking', 'Innovation',
+                    'Relationship Building', 'Client Management', 'Vendor Management'
+                ],
+                'Industry-Specific' => [
+                    'Healthcare Administration', 'Patient Care', 'Medical Terminology',
+                    'HIPAA Compliance', 'Regulatory Compliance', 'Risk Management',
+                    'Audit', 'Tax Preparation', 'Financial Reporting', 'Investment Analysis',
+                    'Legal Research', 'Contract Management', 'Policy Development',
+                    'Grant Writing', 'Fundraising', 'Event Planning', 'Marketing Strategy',
+                    'Brand Management', 'Market Research', 'Sales Strategy',
+                    'Business Development', 'Operations Management', 'Process Improvement',
+                    'Quality Control', 'Inventory Management', 'Logistics',
+                    'Human Resources', 'Recruitment', 'Employee Relations',
+                    'Performance Management', 'Compensation & Benefits', 'Training Coordination'
+                ]
+            ];
+        @endphp
+
+ 
+        
+        <!-- Selected Skills Display -->
+        <div id="skills-container" class="mb-3">
+            <div class="fw-bold mb-2">Selected Skills:</div>
+            <div id="selected-skills-display" class="mb-2 p-2 border rounded" style="min-height: 50px; background-color: #f8f9fa;">
+                @foreach($skills as $skill)
+                <span class="badge badge-primary me-1 mb-1 skill-badge" data-skill="{{ trim($skill) }}">
+                    {{ trim($skill) }} <span class="ms-1" style="cursor:pointer" onclick="removeSkill(this)">×</span>
+                </span>
+                @endforeach
+                <span id="no-skills-text" class="text-muted fst-italic" style="{{ count($skills) > 0 ? 'display: none;' : '' }}">No skills selected yet. Click on suggestions below or type your own.</span>
+            </div>
+        </div>
+        
+        <!-- Manual Skill Input -->
+        <div class="form-group">
+            <label class="fw-bold">Add Skills:</label>
+            <input type="text" id="skill-input" class="form-control" 
+                   placeholder="Start typing to see skill suggestions or add your own...">
+            <small class="text-muted">Press Enter or comma to add skills. Suggestions will appear as you type.</small>
+        </div>
+
+        <!-- Live Skill Suggestions (shown as user types) -->
+        <div id="skill-suggestions-container" class="mt-3" style="display: none;">
+            <div class="p-3 border rounded bg-light">
+                <small class="text-muted fw-bold mb-2 d-block">
+                    <i class="fas fa-lightbulb"></i> Suggested skills:
+                </small>
+                <div id="live-suggestions"></div>
+            </div>
+        </div>
+
+        <!-- Hidden input for form submission -->
+        <input type="hidden" name="skills" id="skills-hidden" value="{{ implode(',', $skills) }}">
+        @error('skills')<small class="form-text text-danger">{{ $message }}</small>@enderror
+    </div>
+</div>
+
+<style>
+.skill-badge {
+    font-size: 0.875rem;
+    cursor: default;
+}
+
+.live-suggestion {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    transition: all 0.2s;
+    border: 1px solid #007bff;
+}
+
+.live-suggestion:hover {
+    background-color: #007bff;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+#skill-suggestions-container {
+    position: relative;
+    z-index: 1000;
+}
+
+.live-suggestion strong {
+    color: #0056b3;
+}
+
+.live-suggestion:hover strong {
+    color: white;
+}
+
+#selected-skills-display {
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.search-highlight {
+    background-color: #fff3cd;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+}
+</style>
             <!-- Documents -->
             
 <!-- Documents -->
@@ -543,61 +658,170 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Skills functionality
+    // Cache DOM elements
     const skillInput = document.getElementById('skill-input');
-    const skillsContainer = document.getElementById('skills-container');
+    const skillsContainer = document.getElementById('selected-skills-display');
     const hiddenInput = document.getElementById('skills-hidden');
+    const noSkillsText = document.getElementById('no-skills-text');
+    const suggestionsContainer = document.getElementById('skill-suggestions-container');
+    const liveSuggestions = document.getElementById('live-suggestions');
 
-    if (skillInput && skillsContainer && hiddenInput) {
-        skillInput.addEventListener('keypress', function(e) {
+    // Get all available skills from skill categories
+     // Get all available skills from PHP data
+    const allSkills = [
+        // Job-specific skills (highest priority)
+        @if(!empty($jobRequisitionSkills))
+            ...@json($jobRequisitionSkills),
+        @endif
+        // Technical skills
+        ...@json($skillCategories['Technical Skills'] ?? []),
+        // Soft skills  
+        ...@json($skillCategories['Soft Skills'] ?? []),
+        // Industry-specific skills
+        ...@json($skillCategories['Industry-Specific'] ?? [])
+    ].filter((skill, index, arr) => {
+        // Remove duplicates and empty values
+        return skill && skill.trim() && arr.indexOf(skill) === index;
+    });
+    let suggestionTimeout;
+
+    // Initialize
+    updateSkillStates();
+    setupEventListeners();
+
+    function setupEventListeners() {
+        // Live suggestions as user types
+        skillInput.addEventListener('input', function() {
+            clearTimeout(suggestionTimeout);
+            const query = this.value.trim();
+            
+            if (query.length >= 2) {
+                suggestionTimeout = setTimeout(() => showLiveSuggestions(query), 150);
+            } else {
+                hideSuggestions();
+            }
+        });
+
+        // Manual skill input
+        skillInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' || e.key === ',') {
                 e.preventDefault();
-                addSkills(this.value);
-                this.value = '';
+                addSkillsFromInput();
+            }
+            if (e.key === 'Escape') {
+                hideSuggestions();
             }
         });
 
         skillInput.addEventListener('blur', function() {
-            if (this.value.trim()) {
-                addSkills(this.value);
-                this.value = '';
-            }
+            // Delay to allow clicking on suggestions
+            setTimeout(() => {
+                const input = this.value.trim();
+                if (input) addSkillsFromInput();
+                hideSuggestions();
+            }, 150);
         });
 
-        function addSkills(input) {
-            const skills = input.split(',').map(s => s.trim()).filter(s => s);
-            skills.forEach(skill => {
-                if (!isSkillExists(skill)) {
-                    const badge = document.createElement('span');
-                    badge.className = 'badge badge-primary me-1 mb-1';
-                    badge.innerHTML = `${skill} <span class="ms-1" style="cursor:pointer" onclick="removeSkill(this)">×</span>`;
-                    skillsContainer.appendChild(badge);
-                }
-            });
-            updateHiddenInput();
-        }
+        skillInput.addEventListener('focus', function() {
+            const query = this.value.trim();
+            if (query.length >= 2) {
+                showLiveSuggestions(query);
+            }
+        });
+    }
 
-        function isSkillExists(skill) {
-            const existing = Array.from(skillsContainer.querySelectorAll('.badge')).map(b => b.textContent.replace('×', '').trim());
-            return existing.includes(skill);
-        }
+    function showLiveSuggestions(query) {
+        const matchedSkills = allSkills.filter(skill => 
+            skill.toLowerCase().includes(query.toLowerCase()) && 
+            !isSkillSelected(skill)
+        ).slice(0, 8); // Limit to 8 suggestions
 
-        function updateHiddenInput() {
-            const skills = Array.from(skillsContainer.querySelectorAll('.badge')).map(b => b.textContent.replace('×', '').trim());
-            hiddenInput.value = skills.join(',');
+        if (matchedSkills.length > 0) {
+            liveSuggestions.innerHTML = matchedSkills.map(skill => 
+                `<button type="button" 
+                         class="btn btn-outline-primary btn-sm me-1 mb-1 live-suggestion" 
+                         data-skill="${skill}"
+                         onmousedown="event.preventDefault(); addSkillFromSuggestion('${skill}')">
+                    ${highlightMatch(skill, query)}
+                 </button>`
+            ).join('');
+            suggestionsContainer.style.display = 'block';
+        } else {
+            hideSuggestions();
         }
     }
 
-    // Make removeSkill globally available
+    function highlightMatch(skill, query) {
+        const regex = new RegExp(`(${query})`, 'gi');
+        return skill.replace(regex, '<strong>$1</strong>');
+    }
+
+    function hideSuggestions() {
+        suggestionsContainer.style.display = 'none';
+        liveSuggestions.innerHTML = '';
+    }
+
+    function addSkillsFromInput() {
+        const input = skillInput.value.trim();
+        if (!input) return;
+
+        const skills = input.split(',').map(s => s.trim()).filter(s => s);
+        skills.forEach(skill => addSkill(skill));
+        skillInput.value = '';
+    }
+
+    function addSkill(skillName) {
+        skillName = skillName.trim();
+        if (!skillName || isSkillSelected(skillName)) return;
+
+        // Create skill badge
+        const badge = document.createElement('span');
+        badge.className = 'badge badge-primary me-1 mb-1 skill-badge';
+        badge.dataset.skill = skillName;
+        badge.innerHTML = `${skillName} <span class="ms-1" style="cursor:pointer" onclick="removeSkill(this)">×</span>`;
+        
+        skillsContainer.appendChild(badge);
+        updateHiddenInput();
+        updateSkillStates();
+    }
+
+    function isSkillSelected(skillName) {
+        return Array.from(skillsContainer.querySelectorAll('.skill-badge'))
+                   .some(badge => badge.dataset.skill.toLowerCase() === skillName.toLowerCase());
+    }
+
+    function updateHiddenInput() {
+        const skills = Array.from(skillsContainer.querySelectorAll('.skill-badge'))
+                          .map(badge => badge.dataset.skill);
+        hiddenInput.value = skills.join(',');
+    }
+
+    function updateSkillStates() {
+        // No need to update suggestion states since they're generated dynamically
+        toggleNoSkillsText();
+    }
+
+    function toggleNoSkillsText() {
+        const hasSkills = skillsContainer.querySelectorAll('.skill-badge').length > 0;
+        noSkillsText.style.display = hasSkills ? 'none' : 'block';
+    }
+
+    // Global functions for onclick handlers
+    window.addSkillFromSuggestion = function(skillName) {
+        addSkill(skillName);
+        skillInput.value = '';
+        hideSuggestions();
+        skillInput.focus();
+    };
+
     window.removeSkill = function(element) {
         element.parentElement.remove();
         updateHiddenInput();
-    }
+        updateSkillStates();
+    };
 
-    // Make updateHiddenInput globally available for removeSkill
-    window.updateHiddenInput = function() {
-        const skills = Array.from(skillsContainer.querySelectorAll('.badge')).map(b => b.textContent.replace('×', '').trim());
-        hiddenInput.value = skills.join(',');
-    }
+    // Initialize display
+    updateSkillStates();
 });
 
 // Dynamic entry management
