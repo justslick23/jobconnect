@@ -47,9 +47,25 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/job/{jobRequisition}/approve', [JobRequisitionController::class, 'approve'])->name('job-requisitions.approve');
     Route::post('/job/{jobRequisition}/reject', [JobRequisitionController::class, 'reject'])->name('job-requisitions.reject');
 
-    // Applicant Profile
-    Route::get('/profile/complete', [ProfileController::class, 'create'])->name('applicant.profile.edit');
-    Route::post('/profile/complete', [ProfileController::class, 'update'])->name('applicant.profile.update');
+    // ===============================================
+    // APPLICANT PROFILE ROUTES - FIXED
+    // ===============================================
+    
+    // GET route for showing the profile form (create/edit)
+    Route::get('/profile/complete', [ProfileController::class, 'create'])->name('applicant.profile.create');
+    
+    // Alternative route name for backward compatibility
+    Route::get('/profile/edit', [ProfileController::class, 'create'])->name('applicant.profile.edit');
+    
+    // POST route for creating/storing new profile (handles both draft and final)
+    Route::post('/profile/complete', [ProfileController::class, 'store'])->name('applicant.profile.store');
+    
+    // PUT route for updating existing profile (handles both draft and final)
+    Route::put('/profile/complete', [ProfileController::class, 'update'])->name('applicant.profile.update');
+    
+    // Additional routes for profile management
+    Route::get('/profile', [ProfileController::class, 'index'])->name('applicant.profile.index');
+    Route::get('/profile/{id}', [ProfileController::class, 'show'])->name('applicant.profile.show');
 
     // Job Applications
     Route::get('/applications/create', [JobApplicationController::class, 'create'])->name('job-applications.create');

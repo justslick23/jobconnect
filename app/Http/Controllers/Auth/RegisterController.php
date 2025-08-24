@@ -46,7 +46,7 @@ class RegisterController extends Controller
     protected function registered(Request $request, $user)
     {
         // Optional: you can flash a message here
-        return redirect()->route('applicant.profile.edit')
+        return redirect()->route('applicant.profile.store')
             ->with('success', 'Welcome! Please complete your profile.');
     }
 }

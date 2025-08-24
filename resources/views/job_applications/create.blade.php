@@ -96,7 +96,7 @@
                                         <i class="fas fa-user me-2"></i>
                                         <h5 class="mb-0">Personal Information</h5>
                                     </div>
-                                    <a href="{{ route('applicant.profile.update') }}" class="btn btn-light btn-sm">
+                                    <a href="{{ route('applicant.profile.create') }}" class="btn btn-light btn-sm">
                                         <i class="fas fa-edit me-1"></i> Update Profile
                                     </a>
                                 </div>

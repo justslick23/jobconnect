@@ -7,10 +7,8 @@ use App\Models\ApplicantProfile;
 use App\Models\ApplicantSkill;
 use App\Models\ApplicantEducation;
 use App\Models\User;
-
 use App\Models\ApplicantExperience;
 use App\Models\JobRequisition;
-
 use App\Models\ApplicantReferences;
 use App\Models\ApplicantQualifications;
 use Illuminate\Http\Request;
@@ -62,9 +60,60 @@ class ProfileController extends Controller
         ));
     }
 
+    /**
+     * Store a new profile (handles both draft and final submission)
+     */
     public function store(Request $request)
     {
-        return redirect()->back()->with('info', 'Use the update form to submit your profile.');
+        $user = Auth::user();
+        $isDraft = $request->has('save_draft') && $request->input('save_draft') == '1';
+        
+        // Check if profile already exists
+        if ($user->profile) {
+            // Profile exists, redirect to update
+            return $this->update($request);
+        }
+
+        // Validate based on whether it's a draft or final submission
+        $validated = $this->validateProfileData($request, $isDraft, false); // false = not updating
+
+        try {
+            DB::beginTransaction();
+
+            // Create new profile
+            $profileData = [
+                'user_id' => $user->id,
+                'first_name' => $validated['first_name'] ?? null,
+                'last_name' => $validated['last_name'] ?? null,
+                'phone' => $validated['phone'] ?? null,
+                'district' => $validated['location'] ?? null,
+                'is_draft' => $isDraft,
+                'completed_at' => $isDraft ? null : now(),
+            ];
+
+            $profile = ApplicantProfile::create($profileData);
+
+            // Save related data
+            $this->saveProfileRelatedData($user, $validated, $request);
+
+            DB::commit();
+
+            $message = $isDraft ? 'Profile saved as draft successfully!' : 'Profile submitted successfully!';
+            return redirect()->back()->with('success', $message);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            \Log::error('Profile creation failed: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+                'trace' => $e->getTraceAsString(),
+            ]);
+        
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'Sorry, something went wrong while creating your profile. Please try again or contact support.');
+        }
     }
 
     public function show(string $id)
@@ -77,118 +126,40 @@ class ProfileController extends Controller
         abort(404);
     }
 
+    /**
+     * Update existing profile (handles both draft and final submission)
+     */
     public function update(Request $request)
     {
-        $validated = $request->validate([
-            // Personal Information
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20',
-            'location' => 'required|string|in:Maseru,Berea,Butha-Buthe,Leribe,Mafeteng,Mohale\'s Hoek,Mokhotlong,Qacha\'s Nek,Quthing,Thaba-Tseka',
-    
-            // Education (at least one required) - CHANGED FROM 'educations' to 'education'
-            'education' => 'required|array|min:1',
-            'education.*.degree' => 'required|string|max:255',
-            'education.*.education_level' => 'required|string|in:High School,Certificate,Diploma,Associate Degree,Bachelor\'s Degree,Postgraduate Diploma,Master\'s Degree,Doctorate (PhD),Other',
-            'education.*.field_of_study' => 'nullable|string|max:255',
-            'education.*.institution' => 'required|string|max:255',
-            'education.*.start_date' => 'nullable|date',
-            'education.*.end_date' => 'nullable|date|after_or_equal:education.*.start_date',
-    
-            // Experience (optional) - CHANGED FROM 'experiences' to 'experiences'
-            'experiences' => 'nullable|array',
-            'experiences.*.job_title' => 'required_with:experiences|string|max:255',
-            'experiences.*.company' => 'required_with:experiences|string|max:255',
-            'experiences.*.description' => 'nullable|string',
-            'experiences.*.start_date' => 'required_with:experiences|date',
-            'experiences.*.end_date' => 'nullable|date|after_or_equal:experiences.*.start_date',
-    
-            // Skills
-            'skills' => 'required|string|min:1',
-    
-            // References (optional)
-            'references' => 'nullable|array',
-            'references.*.name' => 'required_with:references|string|max:255',
-            'references.*.email' => 'required_with:references|email|max:255',
-            'references.*.relationship' => 'nullable|string|max:255',
-            'references.*.phone' => 'nullable|string|max:20',
-    
-            // Qualifications (optional)
-           // Qualifications (all optional)
-            'qualifications' => 'nullable|array',
-            'qualifications.*.title' => 'nullable|string|max:255',
-            'qualifications.*.type' => 'nullable|string|max:255',
-            'qualifications.*.institution' => 'nullable|string|max:255',
-            'qualifications.*.issued_date' => 'nullable|date',
-            'qualifications.*.notes' => 'nullable|string',
-
-    
-            // Documents
-            'resume'          => 'nullable|file|mimes:pdf,doc,docx|max:5120',
-            'cover_letter'    => 'nullable|file|mimes:pdf,doc,docx|max:5120',
-            'transcripts'     => 'nullable|file|mimes:pdf,doc,docx|max:5120',
-            'other_documents.*' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
-        ], [
-            // Custom error messages
-            'education.required' => 'At least one education entry is required.',
-            'education.min' => 'At least one education entry is required.',
-            'education.*.degree.required' => 'Degree is required for all education entries.',
-            'education.*.education_level.required' => 'Education level is required for all education entries.',
-            'education.*.institution.required' => 'Institution is required for all education entries.',
-        ]);
-    
         $user = Auth::user();
-    
+        $isDraft = $request->has('save_draft') && $request->input('save_draft') == '1';
+        
+        // Validate based on whether it's a draft or final submission
+        $validated = $this->validateProfileData($request, $isDraft, true); // true = updating
+
         try {
             DB::beginTransaction();
-    
-            // Update or create profile
+
+            // Update profile
             $profileData = [
-                'first_name' => $validated['first_name'],
-                'last_name' => $validated['last_name'],
-                'phone' => $validated['phone'],
-                'district' => $validated['location'],
+                'first_name' => $validated['first_name'] ?? $user->profile->first_name,
+                'last_name' => $validated['last_name'] ?? $user->profile->last_name,
+                'phone' => $validated['phone'] ?? $user->profile->phone,
+                'district' => $validated['location'] ?? $user->profile->district,
+                'is_draft' => $isDraft,
+                'completed_at' => $isDraft ? $user->profile->completed_at : now(),
             ];
-    
-            $user->profile()->updateOrCreate(['user_id' => $user->id], $profileData);
-    
-            // Handle Education - CHANGED FROM 'educations' to 'education'
-            $this->updateEducation($user, $validated['education']);
-    
-            // Handle Experience
-            if (isset($validated['experiences']) && !empty($validated['experiences'])) {
-                $this->updateExperience($user, $validated['experiences']);
-            } else {
-                $user->experiences()->delete();
-            }
-    
-            // Handle Skills
-            $skillsArray = $this->parseSkillsFromCsv($validated['skills']);
-            $this->updateSkills($user, $skillsArray);
-    
-            // Handle References
-            if (isset($validated['references']) && !empty($validated['references'])) {
-                $this->syncReferences($user, $validated['references']);
-            } else {
-                $user->references()->delete();
-            }
-    
-            // Handle Qualifications
-            if (isset($validated['qualifications']) && !empty($validated['qualifications'])) {
-                $this->syncQualifications($user, $validated['qualifications']);
-            } else {
-                $user->qualifications()->delete();
-            }
-    
-            // Handle File Uploads
-            $this->handleFileUploads($user, $request);
-    
+
+            $user->profile()->update($profileData);
+
+            // Update related data
+            $this->saveProfileRelatedData($user, $validated, $request);
+
             DB::commit();
-    
-            return redirect()
-                ->back()
-                ->with('success', 'Profile updated successfully!');
-    
+
+            $message = $isDraft ? 'Profile draft updated successfully!' : 'Profile submitted successfully!';
+            return redirect()->back()->with('success', $message);
+
         } catch (\Exception $e) {
             DB::rollBack();
         
@@ -202,6 +173,148 @@ class ProfileController extends Controller
                 ->withInput()
                 ->with('error', 'Sorry, something went wrong while updating your profile. Please try again or contact support.');
         }
+    }
+
+    /**
+     * Validate profile data based on draft vs final submission
+     */
+    private function validateProfileData(Request $request, bool $isDraft, bool $isUpdate)
+    {
+        // Base validation rules (always required)
+        $rules = [
+            // Documents
+            'resume' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
+            'cover_letter' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
+            'transcripts' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
+            'other_documents.*' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
+        ];
+
+        $messages = [];
+
+        if ($isDraft) {
+            // Draft validation - more lenient
+            $rules = array_merge($rules, [
+                'first_name' => 'nullable|string|max:255',
+                'last_name' => 'nullable|string|max:255',
+                'phone' => 'nullable|string|max:20',
+                'location' => 'nullable|string|in:Maseru,Berea,Butha-Buthe,Leribe,Mafeteng,Mohale\'s Hoek,Mokhotlong,Qacha\'s Nek,Quthing,Thaba-Tseka',
+                'education' => 'nullable|array',
+                'education.*.degree' => 'nullable|string|max:255',
+                'education.*.education_level' => 'nullable|string|in:High School,Certificate,Diploma,Associate Degree,Bachelor\'s Degree,Postgraduate Diploma,Master\'s Degree,Doctorate (PhD),Other',
+                'education.*.field_of_study' => 'nullable|string|max:255',
+                'education.*.institution' => 'nullable|string|max:255',
+                'education.*.start_date' => 'nullable|date',
+                'education.*.end_date' => 'nullable|date|after_or_equal:education.*.start_date',
+                'experiences' => 'nullable|array',
+                'experiences.*.job_title' => 'nullable|string|max:255',
+                'experiences.*.company' => 'nullable|string|max:255',
+                'experiences.*.description' => 'nullable|string',
+                'experiences.*.start_date' => 'nullable|date',
+                'experiences.*.end_date' => 'nullable|date|after_or_equal:experiences.*.start_date',
+                'skills' => 'nullable|string',
+                'references' => 'nullable|array',
+                'references.*.name' => 'nullable|string|max:255',
+                'references.*.email' => 'nullable|email|max:255',
+                'references.*.relationship' => 'nullable|string|max:255',
+                'references.*.phone' => 'nullable|string|max:20',
+                'qualifications' => 'nullable|array',
+                'qualifications.*.title' => 'nullable|string|max:255',
+                'qualifications.*.type' => 'nullable|string|max:255',
+                'qualifications.*.institution' => 'nullable|string|max:255',
+                'qualifications.*.issued_date' => 'nullable|date',
+                'qualifications.*.notes' => 'nullable|string',
+            ]);
+        } else {
+            // Final submission validation - strict
+            $rules = array_merge($rules, [
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'phone' => 'required|string|max:20',
+                'location' => 'required|string|in:Maseru,Berea,Butha-Buthe,Leribe,Mafeteng,Mohale\'s Hoek,Mokhotlong,Qacha\'s Nek,Quthing,Thaba-Tseka',
+                'education' => 'required|array|min:1',
+                'education.*.degree' => 'required|string|max:255',
+                'education.*.education_level' => 'required|string|in:High School,Certificate,Diploma,Associate Degree,Bachelor\'s Degree,Postgraduate Diploma,Master\'s Degree,Doctorate (PhD),Other',
+                'education.*.field_of_study' => 'nullable|string|max:255',
+                'education.*.institution' => 'required|string|max:255',
+                'education.*.start_date' => 'nullable|date',
+                'education.*.end_date' => 'nullable|date|after_or_equal:education.*.start_date',
+                'experiences' => 'nullable|array',
+                'experiences.*.job_title' => 'required_with:experiences|string|max:255',
+                'experiences.*.company' => 'required_with:experiences|string|max:255',
+                'experiences.*.description' => 'nullable|string',
+                'experiences.*.start_date' => 'required_with:experiences|date',
+                'experiences.*.end_date' => 'nullable|date|after_or_equal:experiences.*.start_date',
+                'skills' => 'required|string|min:1',
+                'references' => 'nullable|array',
+                'references.*.name' => 'required_with:references|string|max:255',
+                'references.*.email' => 'required_with:references|email|max:255',
+                'references.*.relationship' => 'nullable|string|max:255',
+                'references.*.phone' => 'nullable|string|max:20',
+                'qualifications' => 'nullable|array',
+                'qualifications.*.title' => 'nullable|string|max:255',
+                'qualifications.*.type' => 'nullable|string|max:255',
+                'qualifications.*.institution' => 'nullable|string|max:255',
+                'qualifications.*.issued_date' => 'nullable|date',
+                'qualifications.*.notes' => 'nullable|string',
+            ]);
+
+            // For final submission, require resume if it doesn't already exist
+            if ($isUpdate) {
+                $user = Auth::user();
+                $hasExistingResume = $user->attachments()->where('type', 'resume')->exists();
+                if (!$hasExistingResume) {
+                    $rules['resume'] = 'required|file|mimes:pdf,doc,docx|max:5120';
+                }
+            } else {
+                $rules['resume'] = 'required|file|mimes:pdf,doc,docx|max:5120';
+            }
+
+            $messages = [
+                'education.required' => 'At least one education entry is required.',
+                'education.min' => 'At least one education entry is required.',
+                'education.*.degree.required' => 'Degree is required for all education entries.',
+                'education.*.education_level.required' => 'Education level is required for all education entries.',
+                'education.*.institution.required' => 'Institution is required for all education entries.',
+                'resume.required' => 'CV/Resume is required for final submission.',
+            ];
+        }
+
+        return $request->validate($rules, $messages);
+    }
+
+    /**
+     * Save all profile related data (education, experience, skills, etc.)
+     */
+    private function saveProfileRelatedData(User $user, array $validated, Request $request)
+    {
+        // Handle Education
+        if (isset($validated['education']) && !empty($validated['education'])) {
+            $this->updateEducation($user, $validated['education']);
+        }
+
+        // Handle Experience
+        if (isset($validated['experiences']) && !empty($validated['experiences'])) {
+            $this->updateExperience($user, $validated['experiences']);
+        }
+
+        // Handle Skills
+        if (isset($validated['skills']) && !empty($validated['skills'])) {
+            $skillsArray = $this->parseSkillsFromCsv($validated['skills']);
+            $this->updateSkills($user, $skillsArray);
+        }
+
+        // Handle References
+        if (isset($validated['references']) && !empty($validated['references'])) {
+            $this->syncReferences($user, $validated['references']);
+        }
+
+        // Handle Qualifications
+        if (isset($validated['qualifications']) && !empty($validated['qualifications'])) {
+            $this->syncQualifications($user, $validated['qualifications']);
+        }
+
+        // Handle File Uploads
+        $this->handleFileUploads($user, $request);
     }
 
     /**
@@ -222,74 +335,35 @@ class ProfileController extends Controller
         }));
     }
 
-private function handleFileUploads(User $user, Request $request)
-{
-    // Document types that should only keep the latest upload
-    $singleTypes = ['resume', 'cover_letter', 'transcripts'];
-    // Type for multiple supporting documents
-    $multiType = 'other';
-    
-    // === Handle single uploads (replace existing) ===
-    foreach ($singleTypes as $type) {
-        if ($request->hasFile($type) && $request->file($type)->isValid()) {
-            $file = $request->file($type);
-            
-            // More robust validation
-            $originalName = $file->getClientOriginalName();
-            $extension = $file->getClientOriginalExtension();
-            
-            if (empty($originalName) || empty($extension)) {
-                continue; // Skip this file if name or extension is empty
-            }
-            
-            // Delete existing file if present
-            $existing = $user->attachments()->where('type', $type)->first();
-            if ($existing) {
-                Storage::disk('public')->delete($existing->file_path);
-                $existing->delete();
-            }
-            
-            // Generate filename with fallback
-            $filename = $user->id . '_' . $type . '_' . time() . '.' . $extension;
-            
-            try {
-                $filePath = $file->storeAs(
-                    'applicant-documents',
-                    $filename,
-                    'public'
-                );
+    private function handleFileUploads(User $user, Request $request)
+    {
+        // Document types that should only keep the latest upload
+        $singleTypes = ['resume', 'cover_letter', 'transcripts'];
+        // Type for multiple supporting documents
+        $multiType = 'other';
+        
+        // === Handle single uploads (replace existing) ===
+        foreach ($singleTypes as $type) {
+            if ($request->hasFile($type) && $request->file($type)->isValid()) {
+                $file = $request->file($type);
                 
-                if ($filePath) {
-                    // Save DB record
-                    $user->attachments()->create([
-                        'type' => $type,
-                        'original_name' => $originalName,
-                        'file_path' => $filePath,
-                    ]);
-                }
-            } catch (\Exception $e) {
-                // Log error or handle as needed
-                \Log::error('File upload failed: ' . $e->getMessage(), [
-                    'user_id' => $user->id,
-                    'type' => $type,
-                    'original_name' => $originalName
-                ]);
-            }
-        }
-    }
-    
-    // === Handle multiple supporting documents ===
-    if ($request->hasFile('other_documents')) {
-        foreach ($request->file('other_documents') as $file) {
-            if ($file && $file->isValid()) {
+                // More robust validation
                 $originalName = $file->getClientOriginalName();
                 $extension = $file->getClientOriginalExtension();
                 
                 if (empty($originalName) || empty($extension)) {
-                    continue; // Skip this file
+                    continue; // Skip this file if name or extension is empty
                 }
                 
-                $filename = $user->id . '_other_' . uniqid() . '.' . $extension;
+                // Delete existing file if present
+                $existing = $user->attachments()->where('type', $type)->first();
+                if ($existing) {
+                    Storage::disk('public')->delete($existing->file_path);
+                    $existing->delete();
+                }
+                
+                // Generate filename with fallback
+                $filename = $user->id . '_' . $type . '_' . time() . '.' . $extension;
                 
                 try {
                     $filePath = $file->storeAs(
@@ -299,38 +373,76 @@ private function handleFileUploads(User $user, Request $request)
                     );
                     
                     if ($filePath) {
+                        // Save DB record
                         $user->attachments()->create([
-                            'type' => $multiType,
+                            'type' => $type,
                             'original_name' => $originalName,
                             'file_path' => $filePath,
                         ]);
                     }
                 } catch (\Exception $e) {
+                    // Log error or handle as needed
                     \Log::error('File upload failed: ' . $e->getMessage(), [
                         'user_id' => $user->id,
-                        'type' => $multiType,
+                        'type' => $type,
                         'original_name' => $originalName
                     ]);
                 }
             }
         }
+        
+        // === Handle multiple supporting documents ===
+        if ($request->hasFile('other_documents')) {
+            foreach ($request->file('other_documents') as $file) {
+                if ($file && $file->isValid()) {
+                    $originalName = $file->getClientOriginalName();
+                    $extension = $file->getClientOriginalExtension();
+                    
+                    if (empty($originalName) || empty($extension)) {
+                        continue; // Skip this file
+                    }
+                    
+                    $filename = $user->id . '_other_' . uniqid() . '.' . $extension;
+                    
+                    try {
+                        $filePath = $file->storeAs(
+                            'applicant-documents',
+                            $filename,
+                            'public'
+                        );
+                        
+                        if ($filePath) {
+                            $user->attachments()->create([
+                                'type' => $multiType,
+                                'original_name' => $originalName,
+                                'file_path' => $filePath,
+                            ]);
+                        }
+                    } catch (\Exception $e) {
+                        \Log::error('File upload failed: ' . $e->getMessage(), [
+                            'user_id' => $user->id,
+                            'type' => $multiType,
+                            'original_name' => $originalName
+                        ]);
+                    }
+                }
+            }
+        }
     }
-}
 
     // Sync Methods
     protected function updateSkills(User $user, array $skills)
-{
-    // Optionally delete or leave existing — depends on your logic
-    $user->skills()->delete();
+    {
+        // Optionally delete or leave existing — depends on your logic
+        $user->skills()->delete();
 
-    foreach ($skills as $skillName) {
-        ApplicantSkill::firstOrCreate([
-            'user_id' => $user->id,
-            'name'    => trim($skillName),
-        ]);
+        foreach ($skills as $skillName) {
+            ApplicantSkill::firstOrCreate([
+                'user_id' => $user->id,
+                'name'    => trim($skillName),
+            ]);
+        }
     }
-}
-
 
     private function updateEducation(User $user, array $educations)
     {
@@ -349,12 +461,10 @@ private function handleFileUploads(User $user, Request $request)
                 'education_level' => $educationData['education_level'],
                 'field_of_study' => $educationData['field_of_study'] ?? null,
                 'status' => $educationData['status'] ?? 'Completed', // Default to Completed
-
                 'institution' => $educationData['institution'],
                 'start_date' => $educationData['start_date'] ?? null,
                 'end_date' => $educationData['end_date'] ?? null,
                 'expected_graduation' => $educationData['expected_graduation'] ?? null,
-
             ]);
         }
     }

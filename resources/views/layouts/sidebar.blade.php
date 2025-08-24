@@ -56,10 +56,17 @@
                             <p>My Applications</p>
                         </a>
                     </li>
-                    <li class="nav-item {{ request()->is('profile/complete') ? 'active' : '' }}">
-                        <a href="{{ route('applicant.profile.edit') }}">
+                    <li class="nav-item {{ request()->is('profile/complete*') ? 'active' : '' }}">
+                        <a href="{{ route('applicant.profile.create') }}">
                             <i class="fas fa-user"></i>
                             <p>Profile</p>
+                            @if($user->profile && $user->profile->is_draft)
+                                <span class="badge badge-warning ms-1" style="font-size: 0.6rem;">Draft</span>
+                            @elseif($user->profile && !$user->profile->is_draft)
+                                <span class="badge badge-success ms-1" style="font-size: 0.6rem;">Complete</span>
+                            @else
+                                <span class="badge badge-secondary ms-1" style="font-size: 0.6rem;">Incomplete</span>
+                            @endif
                         </a>
                     </li>
                     <li class="nav-item {{ request()->is('interviews*') ? 'active' : '' }}">
