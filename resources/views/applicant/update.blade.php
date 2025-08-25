@@ -26,13 +26,16 @@
             </div>
         @endif
 
-        {{-- Navigation Section --}}
-        <div class="header-navigation">
-            <a href="{{ url()->previous() }}" class="btn btn-primary mb-3">
-                <i class="fas fa-arrow-left me-1"></i> 
-                Back
-            </a>
-        </div>
+    {{-- Navigation Section --}}
+<div class="header-navigation">
+    <div class="d-flex gap-2 flex-wrap mb-3">
+       
+        <a href="{{ route('job-requisitions.index') }}" class="btn btn-primary">
+            <i class="fas fa-briefcase me-1"></i> 
+            Back to Jobs
+        </a>
+    </div>
+</div>
     </div>
 </div>
         

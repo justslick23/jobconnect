@@ -31,27 +31,82 @@ use PhpOffice\PhpSpreadsheet\Style\Font;
 
 class JobApplicationController extends Controller
 {
+   
+
+    
+    
     public function create(Request $request)
     {
         $jobRequisitionId = $request->query('job_requisition');
         $jobRequisition = JobRequisition::findOrFail($jobRequisitionId);
-    
+        
         $user = Auth::user();
-    
-        // Assuming you have these relationships set up on the User model
-        $profile = $user->profile;  
+        $profile = $user->profile;
+
+         // Check if user has already applied for this job requisition
+         $existingApplication = JobApplication::where('user_id', $user->id)
+         ->where('job_requisition_id', $jobRequisitionId)
+         ->first();
+         
+     if ($existingApplication) {
+         return redirect()->route('job-applications.show', $existingApplication->uuid)
+             ->with('info', 'You have already applied for this position. You can view your application status here.');
+     }
+        
+        // Check if profile exists and is not in draft status
+        if (!$profile) {
+            return redirect()->route('applicant.profile.create')
+                ->with('error', 'Please complete your profile before applying for jobs.');
+        }
+        
+        // Assuming your profile has a 'status' field that can be 'draft' or 'completed'
+        if ($profile->is_draft == true) {
+            return redirect()->route('applicant.profile.create')
+                ->with('warning', 'Please complete your profile before applying for jobs. Your profile is currently in draft status.');
+        }
+
+         // Check if user has already applied for this job requisition
+         $existingApplication = JobApplication::where('user_id', $user->id)
+         ->where('job_requisition_id', $request->job_requisition_id)
+         ->first();
+
+     if ($existingApplication) {
+         return redirect()->route('job-applications.show', $existingApplication->uuid)
+             ->with('error', 'You have already submitted an application for this position.');
+     }
+        
+        // Alternative: Check for required fields if you don't have a status field
+        // Uncomment and modify these checks based on your profile requirements
+        /*
+        $requiredFields = ['first_name', 'last_name', 'phone'];
+        $missingFields = [];
+        
+        foreach ($requiredFields as $field) {
+            if (empty($profile->$field)) {
+                $missingFields[] = $field;
+            }
+        }
+        
+        if (!empty($missingFields)) {
+            $fieldNames = implode(', ', array_map('ucfirst', str_replace('_', ' ', $missingFields)));
+            return redirect()->route('applicant.profile.create')
+                ->with('warning', "Please complete your profile before applying. Missing fields: {$fieldNames}");
+        }
+        */
+        
+        // Get user related data
         $skills = $user->skills;
         $education = $user->education;
         $experience = $user->experiences;
         $references = $user->references;
         $qualifications = $user->qualifications;
         $attachments = $user->attachments;
-
+        
         return view('job_applications.create', compact(
-            'jobRequisition', 'profile', 'skills', 'education', 'experience', 'references', 'qualifications', 'attachments'
+            'jobRequisition', 'profile', 'skills', 'education', 
+            'experience', 'references', 'qualifications', 'attachments'
         ));
     }
-
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -357,6 +412,7 @@ $applications = $query->get();
         $user = Auth::user();
     
         // Optional: Check if user has completed profile or other eligibility criteria
+        
         if (!$user->profile) {
             return back()->withErrors(['profile' => 'Please complete your profile before applying.']);
         }

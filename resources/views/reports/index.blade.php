@@ -375,73 +375,82 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Application Trends Chart
-    const trendsCtx = document.getElementById('trendsChart').getContext('2d');
-    const trendsChart = new Chart(trendsCtx, {
-        type: 'line',
-        data: {
-            labels: @json(array_column($applicationTrends, 'month'))
-            datasets: [{
-                label: 'Applications',
-                data: @json(collect($applicationTrends)->pluck('applications'))
-                borderColor: '#0d6efd',
-                backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                borderWidth: 3,
-                fill: true,
-                tension: 0.4
-            }, {
-                label: 'Hires',
-                data: @json(collect($applicationTrends)->pluck('hires'))
-                borderColor: '#198754',
-                backgroundColor: 'rgba(25, 135, 84, 0.1)',
-                borderWidth: 3,
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'top',
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: 'rgba(0,0,0,0.1)'
-                    }
+    document.addEventListener('DOMContentLoaded', function() {
+        // Application Trends Chart - Only initialize if element exists and data is available
+        const trendsChartElement = document.getElementById('trendsChart');
+        if (trendsChartElement && @json(!empty($applicationTrends))) {
+            const trendsCtx = trendsChartElement.getContext('2d');
+            const trendsChart = new Chart(trendsCtx, {
+                type: 'line',
+                data: {
+                    labels: @json(array_column($applicationTrends, 'month')),
+                    datasets: [{
+                        label: 'Applications',
+                        data: @json(collect($applicationTrends)->pluck('applications')->toArray()),
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }, {
+                        label: 'Hires',
+                        data: @json(collect($applicationTrends)->pluck('hires')->toArray()),
+                        borderColor: '#198754',
+                        backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }]
                 },
-                x: {
-                    grid: {
-                        color: 'rgba(0,0,0,0.1)'
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        }
                     }
                 }
-            }
+            });
         }
     });
-});
-
-function exportReport(format) {
-    if (format === 'pdf') {
-        window.open('{{ route("reports.export.pdf") }}?date_range={{ $filters["date_range"] }}&department_id={{ $filters["department_id"] ?? "" }}', '_blank');
-    } else if (format === 'csv') {
-        window.open('{{ route("reports.export.csv") }}?date_range={{ $filters["date_range"] }}&department_id={{ $filters["department_id"] ?? "" }}', '_blank');
+    
+    function exportReport(format) {
+        const urlParams = new URLSearchParams({
+            date_range: '{{ $filters["date_range"] }}',
+            department_id: '{{ $filters["department_id"] ?? "" }}'
+        });
+        
+        if (format === 'pdf') {
+            window.open('{{ route("reports.export.pdf") }}?' + urlParams.toString(), '_blank');
+        } else if (format === 'csv') {
+            window.open('{{ route("reports.export.csv") }}?' + urlParams.toString(), '_blank');
+        }
     }
-}
+    
+    // Print specific styles
+    window.addEventListener('beforeprint', function() {
+        document.body.classList.add('print-mode');
+    });
+    
+    window.addEventListener('afterprint', function() {
+        document.body.classList.remove('print-mode');
+    });
+    </script>
 
-// Print specific styles
-window.addEventListener('beforeprint', function() {
-    document.body.classList.add('print-mode');
-});
-
-window.addEventListener('afterprint', function() {
-    document.body.classList.remove('print-mode');
-});
-</script>
 
 <style>
 .card {
