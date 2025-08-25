@@ -95,7 +95,6 @@
                     </select>
                 </div>
                 @if(!auth()->user()->isApplicant())
-
                     <div class="col-md-4">
                         <select id="approvalFilter" class="form-select">
                             <option value="">Filter by Approval</option>
@@ -119,12 +118,11 @@
                             <th>Reference</th>
                             <th>Title</th>
                             <th>Status</th>
-                            @if(!Auth::check() || (Auth::check() && !auth()->user()->isApplicant()))
-                            @endif
                             <th>Filled</th>
-                            @unless(!Auth::check() && true)
+                            {{-- Only show Applications Count for HR Admin and Managers --}}
+                            @if(Auth::check() && (auth()->user()->isHrAdmin() ))
                                 <th>Applications Count</th>
-                            @endunless
+                            @endif
                             <th>Created</th>
                             <th class="text-center">
                                 @if(Auth::check() && auth()->user()->isApplicant())
@@ -163,8 +161,6 @@
                                     @endswitch
                                 </td>
 
-                              
-
                                 <td>
                                     @if($isFilled)
                                         <span class="badge bg-success">Yes</span>
@@ -173,20 +169,20 @@
                                     @endif
                                 </td>
 
-                                @unless(!Auth::check() && true)
+                                {{-- Only show Applications Count for HR Admin and Managers --}}
+                                @if(Auth::check() && (auth()->user()->isHrAdmin()))
                                     <td>{{ $req->applications->count() }}</td>
-                                @endunless
+                                @endif
 
                                 <td>{{ $req->created_at->format('Y-m-d') }}</td>
                                 <td class="text-center">
-                                 
-                                            <div class="btn-group" role="group">
-                                                <a href="{{ route('job-requisitions.show', $req->slug_uuid) }}" 
-                                                    class="btn btn-sm btn-outline-primary rounded" title="View">
-                                                    <i class="bi bi-eye me-1"></i> View
-                                                </a>
-                                                @if(Auth::check())
-                                                @if(auth()->user()->isHrAdmin() || auth()->user()->isManager())
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ route('job-requisitions.show', $req->slug_uuid) }}" 
+                                            class="btn btn-sm btn-outline-primary rounded" title="View">
+                                            <i class="bi bi-eye me-1"></i> View
+                                        </a>
+                                        @if(Auth::check())
+                                            @if(auth()->user()->isHrAdmin())
                                                 <a href="{{ route('job-requisitions.edit', $req->id) }}" 
                                                     class="btn btn-sm btn-outline-warning rounded" title="Edit">
                                                     <i class="bi bi-pencil me-1"></i> Edit
@@ -195,32 +191,32 @@
                                                     class="btn btn-sm btn-outline-secondary rounded" title="Applications">
                                                     <i class="bi bi-people-fill me-1"></i> Applications
                                                 </a>
-                                            </div>
-                                        @elseif(auth()->user()->isApplicant())
-                                            @if($req->approval_status === 'approved' && $req->job_status === 'active' && !$isFilled)
-                                                <a href="{{ route('job-applications.create', ['job_requisition' => $req->id]) }}" 
-                                                    class="btn btn-sm btn-primary rounded" title="Apply Now">
-                                                    <i class="bi bi-send me-1"></i> Apply Now
-                                                </a>
-                                            @else
-                                                <span class="text-muted small">
-                                                    @if($isFilled)
-                                                        Position Filled
-                                                    @elseif($req->approval_status !== 'approved')
-                                                        Pending Approval
-                                                    @elseif($req->job_status !== 'active')
-                                                        Position Closed
-                                                    @else
-                                                        N/A
-                                                    @endif
-                                                </span>
+                                            @elseif(auth()->user()->isApplicant())
+                                                @if($req->approval_status === 'approved' && $req->job_status === 'active' && !$isFilled)
+                                                    <a href="{{ route('job-applications.create', ['job_requisition' => $req->id]) }}" 
+                                                        class="btn btn-sm btn-primary rounded" title="Apply Now">
+                                                        <i class="bi bi-send me-1"></i> Apply Now
+                                                    </a>
+                                                @else
+                                                    <span class="text-muted small">
+                                                        @if($isFilled)
+                                                            Position Filled
+                                                        @elseif($req->approval_status !== 'approved')
+                                                            Pending Approval
+                                                        @elseif($req->job_status !== 'active')
+                                                            Position Closed
+                                                        @else
+                                                            N/A
+                                                        @endif
+                                                    </span>
+                                                @endif
                                             @endif
+                                        @else
+                                            <a href="{{ route('login') }}" class="btn btn-sm btn-primary rounded">
+                                                <i class="bi bi-box-arrow-in-right me-1"></i> Login to Apply
+                                            </a>
                                         @endif
-                                    @else
-                                    <a href="{{ route('login') }}" class="btn btn-sm btn-primary rounded">
-                                        <i class="bi bi-box-arrow-in-right me-1"></i> Login to Apply
-                                    </a>
-                                                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach
@@ -258,7 +254,7 @@
             if (!$.fn.DataTable.isDataTable('#requisitionsTable')) {
                 let buttons = [];
 
-                @if(Auth::check() && (!auth()->user()->isApplicant()))
+                @if(Auth::check() && (auth()->user()->isHrAdmin())
                     buttons = [
                         { extend: 'csvHtml5', className: 'btn btn-outline-secondary btn-sm me-1', text: 'Export CSV' },
                         { extend: 'excelHtml5', className: 'btn btn-outline-success btn-sm me-1', text: 'Export Excel' },
@@ -267,10 +263,18 @@
                     ];
                 @endif
 
+                // Calculate the correct column index for sorting based on whether Applications Count column is shown
+                let sortColumnIndex;
+                @if(Auth::check() && (auth()->user()->isHrAdmin()))
+                    sortColumnIndex = 5; // Created column when Applications Count is shown
+                @else
+                    sortColumnIndex = 4; // Created column when Applications Count is hidden
+                @endif
+
                 let table = $('#requisitionsTable').DataTable({
                     responsive: true,
                     pageLength: 25,
-                    order: [[{{ (Auth::check() && auth()->user()->isApplicant()) ? 4 : 5 }}, 'desc']],
+                    order: [[sortColumnIndex, 'desc']],
                     dom: 'Bfrtip',
                     buttons: buttons,
                     language: {
@@ -287,8 +291,9 @@
                     table.column(2).search($(this).val()).draw();
                 });
 
-                @if(!Auth::check() || (Auth::check() && !auth()->user()->isApplicant()))
+                @if(Auth::check() && !auth()->user()->isApplicant())
                     $('#approvalFilter').on('change', function () {
+                        // Note: You may need to adjust this column index if you add the approval status column back
                         table.column(3).search($(this).val()).draw();
                     });
                 @endif
