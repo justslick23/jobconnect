@@ -254,7 +254,7 @@
             if (!$.fn.DataTable.isDataTable('#requisitionsTable')) {
                 let buttons = [];
 
-                @if(Auth::check() && (auth()->user()->isHrAdmin())
+                @if(Auth::check() && (auth()->user()->isHrAdmin()))
                     buttons = [
                         { extend: 'csvHtml5', className: 'btn btn-outline-secondary btn-sm me-1', text: 'Export CSV' },
                         { extend: 'excelHtml5', className: 'btn btn-outline-success btn-sm me-1', text: 'Export Excel' },
