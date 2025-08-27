@@ -159,8 +159,9 @@ $applications = $query->get();
                 ], 400);
             }
             
-            // Check permissions
-            if (!auth()->user()->isHrAdmin() && !auth()->user()->canManageApplications()) {
+            // Check permissions - Fix the method calls
+            $user = auth()->user();
+            if (!$user->hasRole('hr_admin') && !$user->hasRole('manager')) {
                 return response()->json([
                     'success' => false, 
                     'message' => 'Unauthorized action'
@@ -169,7 +170,7 @@ $applications = $query->get();
             
             $oldStatus = $application->status;
             
-            // Map actions to statuses
+            // Map actions to statuses - Fix the status mapping
             switch ($action) {
                 case 'shortlist':
                     $application->status = 'shortlisted';
@@ -178,7 +179,7 @@ $applications = $query->get();
                     $application->status = 'rejected';
                     break;
                 case 'offer_sent':
-                    $application->status = 'offer_sent';
+                    $application->status = 'offer sent'; // Match your database enum
                     break;
                 case 'hired':
                     $application->status = 'hired';
@@ -186,6 +187,7 @@ $applications = $query->get();
             }
             
             $application->updated_by = auth()->id();
+            $application->updated_at = now(); // Explicitly set updated_at
             $application->save();
             
             // Log the status change
@@ -195,9 +197,6 @@ $applications = $query->get();
                 'new_status' => $application->status,
                 'updated_by' => auth()->id()
             ]);
-            
-            // Optional: Send notification to applicant
-            // $this->notifyApplicant($application, $action);
             
             return response()->json([
                 'success' => true, 
@@ -210,12 +209,13 @@ $applications = $query->get();
             Log::error('Error updating application status', [
                 'application_id' => $id,
                 'action' => $request->input('action'),
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString() // Add stack trace for debugging
             ]);
             
             return response()->json([
                 'success' => false, 
-                'message' => 'Error updating application status. Please try again.'
+                'message' => 'Error updating application status: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -277,14 +277,15 @@ $applications = $query->get();
             $request->validate([
                 'action' => [
                     'required',
-                    Rule::in(['shortlist', 'reject', 'offersent', 'hired'])
+                    Rule::in(['shortlist', 'reject', 'offer_sent', 'hired']) // Fix the validation rule
                 ],
                 'applications' => 'required|array|min:1',
                 'applications.*' => 'exists:job_applications,id'
             ]);
             
-            // Check permissions
-            if (!auth()->user()->isHrAdmin() && !auth()->user()->canManageApplications()) {
+            // Check permissions - Fix the method calls
+            $user = auth()->user();
+            if (!$user->hasRole('hr_admin') && !$user->hasRole('manager')) {
                 return response()->json([
                     'success' => false, 
                     'message' => 'Unauthorized action'
@@ -294,11 +295,11 @@ $applications = $query->get();
             $action = $request->input('action');
             $applicationIds = $request->input('applications');
             
-            // Map action to status
+            // Map action to status - Fix the mapping
             $statusMap = [
                 'shortlist' => 'shortlisted',
                 'reject' => 'rejected',
-                'offer_sent' => 'offer sent',
+                'offer_sent' => 'offer sent', // Match your database enum
                 'hired' => 'hired'
             ];
             
@@ -310,7 +311,7 @@ $applications = $query->get();
                 $updatedCount = JobApplication::whereIn('id', $applicationIds)
                     ->update([
                         'status' => $newStatus,
-
+                        'updated_by' => auth()->id(), // Fix: add updated_by field
                         'updated_at' => now()
                     ]);
                 
@@ -336,16 +337,22 @@ $applications = $query->get();
                 throw $e;
             }
             
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed: ' . implode(', ', $e->validator->errors()->all())
+            ], 422);
         } catch (\Exception $e) {
             Log::error('Error in bulk application status update', [
                 'action' => $request->input('action'),
                 'applications' => $request->input('applications'),
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating applications. Please try again.'
+                'message' => 'Error updating applications: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -359,11 +366,14 @@ $applications = $query->get();
             'submitted' => 'Submitted',
             'shortlisted' => 'Shortlisted',
             'rejected' => 'Rejected',
-            'offer_sent' => 'Offer Sent',
-            'hired' => 'Hired'
+            'offer sent' => 'Offer Sent', // Match your database enum
+            'offer_sent' => 'Offer Sent', // Handle both cases
+            'hired' => 'Hired',
+            'interview scheduled' => 'Interview Scheduled',
+            'review' => 'Under Review'
         ];
         
-        return $labels[$status] ?? ucfirst($status);
+        return $labels[$status] ?? ucfirst(str_replace('_', ' ', $status));
     }
     
     /**
@@ -543,17 +553,17 @@ public function submitReview(Request $request, JobApplication $application)
     return redirect()->back()->with('success', 'Review submitted successfully.');
 }
 
-
 public function exportByJob($jobId)
 {
     try {
         // Find the job requisition with department
         $jobRequisition = JobRequisition::with(['department'])->findOrFail($jobId);
 
-        // Get all applications with related data
+        // Get all applications with related data, sorted by application score descending
         $applications = JobApplication::where('job_requisition_id', $jobId)
-        ->orderBy('created_at', 'desc')
-        ->get();
+            ->with(['user.profile', 'user.education', 'user.qualifications', 'user.skills', 'score', 'interviews'])
+            ->get()
+            ->sortByDesc(fn($a) => $a->score->total_score ?? 0);
 
         // Create spreadsheet
         $spreadsheet = new Spreadsheet();
@@ -582,26 +592,27 @@ public function exportByJob($jobId)
         // Table headers
         $headerRow = 7;
         $headers = [
-            'A' => '#',
-            'B' => 'Applicant Name',
-            'C' => 'Email',
-            'D' => 'Phone',
-            'E' => 'Status',
-            'F' => 'Application Date',
-            'G' => 'Application Score',
+            'A' => 'Applicant Name',
+            'B' => 'Email',
+            'C' => 'Phone',
+            'D' => 'Status',
+            'E' => 'Application Date',
+            'F' => 'Application Score',
+            'G' => 'Experience (Years)',
             'H' => 'Interview Score',
-            'I' => 'Experience (Years)',
-            'J' => 'Education Level',
-            'K' => 'Skills',
-            'L' => 'Cover Letter Preview',
-            'M' => 'Last Updated'
+            'I' => 'Education Level',
+            'J' => 'Area of Study',
+            'K' => 'Institution',
+            'L' => 'Qualification Title',
+            'M' => 'Qualification Institution',
+            'N' => 'Skills'
         ];
 
         foreach ($headers as $column => $header) {
             $sheet->setCellValue($column . $headerRow, $header);
         }
 
-        $headerRange = 'A' . $headerRow . ':M' . $headerRow;
+        $headerRange = 'A' . $headerRow . ':N' . $headerRow;
         $sheet->getStyle($headerRange)->getFont()->setBold(true);
         $sheet->getStyle($headerRange)->getFill()
             ->setFillType(Fill::FILL_SOLID)
@@ -611,23 +622,31 @@ public function exportByJob($jobId)
 
         // Populate applications
         $row = $headerRow + 1;
-        $counter = 1;
 
         foreach ($applications as $application) {
-            $sheet->setCellValue('A' . $row, $counter);
-            $sheet->setCellValue('B' . $row, $application->user->name ?? 'N/A');
-            $sheet->setCellValue('C' . $row, $application->user->email ?? 'N/A');
+            $user = $application->user;
+            $profile = $user->profile ?? null;
 
-            // Phone
-            $phone = $application->user->profile->phone ?? 'N/A';
-            $sheet->setCellValue('D' . $row, $phone);
-
-            $sheet->setCellValue('E' . $row, ucfirst($application->status));
-            $sheet->setCellValue('F' . $row, $application->created_at->format('M j, Y'));
+            // Applicant info
+            $sheet->setCellValue('A' . $row, $user->name ?? 'N/A');
+            $sheet->setCellValue('B' . $row, $user->email ?? 'N/A');
+            $sheet->setCellValue('C' . $row, $profile->phone ?? 'N/A');
+            $sheet->setCellValue('D' . $row, ucfirst($application->status));
+            $sheet->setCellValue('E' . $row, $application->created_at->format('M j, Y'));
 
             // Application score
-            $appScore = $application->score ? number_format($application->score->total_score, 2) . '/100' : 'Not Scored';
-            $sheet->setCellValue('G' . $row, $appScore);
+            $appScore = $application->score ? $application->score->total_score : null;
+            $sheet->setCellValue('F' . $row, $appScore !== null ? number_format($appScore, 2) . '/100' : 'Not Scored');
+
+            // Experience in whole years
+            $experiences = $user->experiences ?? collect();
+            $totalYears = $experiences->sum(function($exp) {
+                $start = Carbon::parse($exp->start_date);
+                $end = $exp->end_date ? Carbon::parse($exp->end_date) : Carbon::now();
+                return $start->diffInYears($end);
+            });
+            $sheet->setCellValue('G' . $row, $totalYears ?: 'N/A');
+            
 
             // Interview score
             $interviewScore = $application->interviews && $application->interviews->averageScore() !== null
@@ -635,95 +654,50 @@ public function exportByJob($jobId)
                 : 'Not Conducted';
             $sheet->setCellValue('H' . $row, $interviewScore);
 
-            // Experience in years
-            $experiences = $application->user->experiences ?? collect();
-            if ($experiences->isEmpty()) {
-                $totalYears = 'N/A';
-            } else {
-                $totalMonths = $experiences->sum(function($exp) {
-                    $start = Carbon::parse($exp->start_date);
-                    $end = $exp->end_date ? Carbon::parse($exp->end_date) : Carbon::now();
-                    return $start->diffInMonths($end);
-                });
-                $totalYears = round($totalMonths / 12, 1);
-            }
-            $sheet->setCellValue('I' . $row, $totalYears);
+            // Education info
+            $education = $user->education->sortByDesc(fn($e) => $e->graduation_year ?? 0)->first();
+            $sheet->setCellValue('I' . $row, $education->degree ?? 'N/A');
+            $sheet->setCellValue('J' . $row, $education->field_of_study ?? 'N/A');
+            $sheet->setCellValue('K' . $row, $education->institution ?? 'N/A');
+            
+            // Qualifications / certifications
+            $qualification = $user->qualifications->first();
+            $sheet->setCellValue('L' . $row, $qualification->title ?? 'N/A');
+            $sheet->setCellValue('M' . $row, $qualification->institution ?? 'N/A');
 
-            // Education (all degrees)
-            $educationString = $application->user->education
-                ->pluck('degree')
-                ->filter()
-                ->implode(', ');
-            $sheet->setCellValue('J' . $row, $educationString ?: 'N/A');
-
-            // Skills (all names)
-            $skills = $application->user->skills ?? collect();
+            // Skills (comma-separated)
+            $skills = $user->skills ?? collect();
             $skillsString = $skills->isEmpty() ? 'N/A' : $skills->pluck('name')->implode(', ');
-            $sheet->setCellValue('K' . $row, $skillsString);
+            $sheet->setCellValue('N' . $row, $skillsString);
 
-            // Cover letter preview
-            $coverLetter = $application->cover_letter ? substr(strip_tags($application->cover_letter), 0, 100) . '...' : 'N/A';
-            $sheet->setCellValue('L' . $row, $coverLetter);
-
-            $sheet->setCellValue('M' . $row, $application->updated_at->format('M j, Y g:i A'));
-
-            // Row coloring based on status
-            $rowRange = 'A' . $row . ':M' . $row;
-            switch (strtolower($application->status)) {
-                case 'hired':
-                    $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E8F5E8');
-                    break;
-                case 'shortlisted':
-                    $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFF3CD');
-                    break;
-                case 'rejected':
-                    $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('F8D7DA');
-                    break;
+            // Conditional row coloring based on application score
+            $rowRange = 'A' . $row . ':N' . $row;
+            if ($appScore !== null) {
+                if ($appScore < 60) {
+                    $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('F8D7DA'); // red
+                } elseif ($appScore < 70) {
+                    $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFF3CD'); // yellow
+                } else {
+                    $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E8F5E8'); // green
+                }
             }
 
             $row++;
-            $counter++;
         }
 
         // Auto-size columns
-        foreach (range('A', 'M') as $column) {
+        foreach (range('A', 'N') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
         // Add borders
-        $tableRange = 'A' . $headerRow . ':M' . ($row - 1);
+        $tableRange = 'A' . $headerRow . ':N' . ($row - 1);
         $sheet->getStyle($tableRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-
-        // Summary statistics
-        $summaryRow = $row + 2;
-        $sheet->setCellValue('A' . $summaryRow, 'SUMMARY STATISTICS');
-        $sheet->getStyle('A' . $summaryRow)->getFont()->setBold(true)->setSize(12);
-
-        $summaryRow++;
-        $sheet->setCellValue('A' . $summaryRow, 'Total Applications:')->setCellValue('B' . $summaryRow, $applications->count());
-
-        $summaryRow++;
-        $sheet->setCellValue('A' . $summaryRow, 'Shortlisted:')->setCellValue('B' . $summaryRow, $applications->where('status', 'shortlisted')->count());
-
-        $summaryRow++;
-        $sheet->setCellValue('A' . $summaryRow, 'Hired:')->setCellValue('B' . $summaryRow, $applications->where('status', 'hired')->count());
-
-        $summaryRow++;
-        $sheet->setCellValue('A' . $summaryRow, 'Rejected:')->setCellValue('B' . $summaryRow, $applications->where('status', 'rejected')->count());
-
-        $summaryRow++;
-        $sheet->setCellValue('A' . $summaryRow, 'Pending:')->setCellValue('B' . $summaryRow, $applications->where('status', 'submitted')->count());
-
-        // Style summary section
-        $summaryRange = 'A' . ($summaryRow - 5) . ':B' . $summaryRow;
-        $sheet->getStyle($summaryRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('F5F5F5');
-        $sheet->getStyle('A' . ($summaryRow - 5) . ':A' . $summaryRow)->getFont()->setBold(true);
 
         // Sheet name and filename
         $sheet->setTitle('Applications Export');
         $filename = 'Applications_' . str_replace([' ', '/', '\\', ':', '*', '?', '"', '<', '>', '|'], '_', $jobRequisition->title) . '_' . now()->format('Y-m-d_H-i-s') . '.xlsx';
 
-        // Output file
         $writer = new Xlsx($spreadsheet);
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -738,110 +712,167 @@ public function exportByJob($jobId)
 }
 
 
+
     /**
      * Export all applications across all job requisitions
      */
     public function exportAll()
     {
         try {
-            $applications = JobApplication::with(['user', 'jobRequisition.department', 'score', 'interviews'])
-                ->orderBy('created_at', 'desc')
-                ->get();
-
+            $applications = JobApplication::with([
+                'user.profile',
+                'user.experiences',
+                'user.education',
+                'user.skills',
+                'user.qualifications',
+                'jobRequisition.department',
+                'score',
+                'interviews'
+            ])->orderBy('created_at', 'desc')->get();
+    
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
-
-            // Set document properties
+    
+            // Document properties
             $spreadsheet->getProperties()
                 ->setCreator('HR Management System')
                 ->setTitle('All Job Applications Export')
                 ->setDescription('Complete job applications export')
                 ->setKeywords('job applications export all')
                 ->setCategory('HR Reports');
-
+    
             // Headers
             $headers = [
-                'A' => '#',
-                'B' => 'Job Title',
-                'C' => 'Department',
-                'D' => 'Applicant Name',
-                'E' => 'Email',
-                'F' => 'Status',
+                'A' => 'Job Title',
+                'B' => 'Department',
+                'C' => 'Applicant Name',
+                'D' => 'Email',
+                'E' => 'Phone',
+                'F' => 'Status / Review',
                 'G' => 'Application Date',
                 'H' => 'Application Score',
-                'I' => 'Interview Score',
-                'J' => 'Last Updated'
+                'I' => 'Experience (Years)',
+                'J' => 'Interview Score',
+                'K' => 'Education Level',
+                'L' => 'Institution',
+                'M' => 'Areas of Study',
+                'N' => 'Skills',
+                'O' => 'Qualifications'
             ];
-
+    
             $headerRow = 1;
-            foreach ($headers as $column => $header) {
-                $sheet->setCellValue($column . $headerRow, $header);
+            foreach ($headers as $col => $header) {
+                $sheet->setCellValue($col . $headerRow, $header);
             }
-
+    
             // Style headers
-            $headerRange = 'A1:J1';
+            $headerRange = 'A' . $headerRow . ':O' . $headerRow;
             $sheet->getStyle($headerRange)->getFont()->setBold(true);
             $sheet->getStyle($headerRange)->getFill()
                 ->setFillType(Fill::FILL_SOLID)
                 ->getStartColor()->setRGB('2196F3');
             $sheet->getStyle($headerRange)->getFont()->getColor()->setRGB('FFFFFF');
-
+            $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    
             // Add data
             $row = 2;
-            $counter = 1;
-
             foreach ($applications as $application) {
-                $sheet->setCellValue('A' . $row, $counter);
-                $sheet->setCellValue('B' . $row, $application->jobRequisition->title ?? 'N/A');
-                $sheet->setCellValue('C' . $row, $application->jobRequisition->department->name ?? 'General');
-                $sheet->setCellValue('D' . $row, $application->user->name ?? 'N/A');
-                $sheet->setCellValue('E' . $row, $application->user->email ?? 'N/A');
-                $sheet->setCellValue('F' . $row, ucfirst($application->status));
+    
+                // Applicant info
+                $sheet->setCellValue('A' . $row, $application->jobRequisition->title ?? 'N/A');
+                $sheet->setCellValue('B' . $row, $application->jobRequisition->department->name ?? 'General');
+                $sheet->setCellValue('C' . $row, $application->user->name ?? 'N/A');
+                $sheet->setCellValue('D' . $row, $application->user->email ?? 'N/A');
+                $sheet->setCellValue('E' . $row, $application->user->profile->phone ?? 'N/A');
+                $sheet->setCellValue('F' . $row, ucfirst($application->status) . 
+                    ($application->review ? ' / ' . ucfirst($application->review) : ''));
                 $sheet->setCellValue('G' . $row, $application->created_at->format('M j, Y'));
-                
-                $appScore = $application->score ? 
-                    number_format($application->score->total_score, 2) . '/100' : 'Not Scored';
-                $sheet->setCellValue('H' . $row, $appScore);
-                
+    
+                // Application score
+                $appScore = $application->score ? $application->score->total_score : null;
+                $sheet->setCellValue('H' . $row, $appScore !== null ? $appScore : 'Not Scored');
+    
+                // Experience (whole years)
+                $experiences = $application->user->experiences ?? collect();
+                if ($experiences->isEmpty()) {
+                    $totalYears = 'N/A';
+                } else {
+                    $totalMonths = $experiences->sum(function($exp) {
+                        $start = Carbon::parse($exp->start_date);
+                        $end = $exp->end_date ? Carbon::parse($exp->end_date) : Carbon::now();
+                        return $start->diffInMonths($end);
+                    });
+                    $totalYears = floor($totalMonths / 12);
+                }
+                $sheet->setCellValue('I' . $row, $totalYears);
+    
+                // Interview score
                 $interviewScore = $application->interviews && $application->interviews->averageScore() !== null ? 
                     $application->interviews->averageScore() . '/5' : 'Not Conducted';
-                $sheet->setCellValue('I' . $row, $interviewScore);
-                
-                $sheet->setCellValue('J' . $row, $application->updated_at->format('M j, Y'));
-                
+                $sheet->setCellValue('J' . $row, $interviewScore);
+    
+                // Education and Institution
+                $education = $application->user->education ?? collect();
+                $sheet->setCellValue('K' . $row, $education->pluck('degree')->filter()->implode(', ') ?: 'N/A');
+                $sheet->setCellValue('L' . $row, $education->pluck('institution')->filter()->implode(', ') ?: 'N/A');
+                $sheet->setCellValue('M' . $row, $education->pluck('area_of_study')->filter()->implode(', ') ?: 'N/A');
+    
+                // Skills
+                $skills = $application->user->skills ?? collect();
+                $sheet->setCellValue('N' . $row, $skills->isEmpty() ? 'N/A' : implode(",\n", $skills->pluck('name')->toArray()));
+    
+                // Qualifications (title + institution)
+                $qualifications = $application->user->qualifications ?? collect();
+                $sheet->setCellValue('O' . $row, $qualifications->isEmpty() ? 'N/A' : 
+                    $qualifications->map(fn($q) => $q->title . ' - ' . ($q->institution ?? 'N/A'))->implode(",\n"));
+    
+                // Enable text wrap
+                $sheet->getStyle('A' . $row . ':O' . $row)->getAlignment()->setWrapText(true);
+    
+                // Auto row height
+                $sheet->getRowDimension($row)->setRowHeight(-1);
+    
+                // Conditional row coloring based on application score
+                $rowRange = 'A' . $row . ':O' . $row;
+                if ($appScore === null) {
+                    $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('F5F5F5');
+                } elseif ($appScore < 60) {
+                    $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFC7CE'); // Red
+                } elseif ($appScore >= 60 && $appScore <= 84) {
+                    $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFEB9C'); // Yellow
+                } else { // 85+
+                    $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('C6EFCE'); // Green
+                }
+    
                 $row++;
-                $counter++;
             }
-
+    
             // Auto-size columns
-            foreach (range('A', 'J') as $column) {
-                $sheet->getColumnDimension($column)->setAutoSize(true);
+            foreach (range('A', 'O') as $col) {
+                $sheet->getColumnDimension($col)->setAutoSize(true);
             }
-
-            // Add borders
-            $tableRange = 'A1:J' . ($row - 1);
-            $sheet->getStyle($tableRange)->getBorders()->getAllBorders()
-                ->setBorderStyle(Border::BORDER_THIN);
-
+    
+            // Borders
+            $tableRange = 'A1:O' . ($row - 1);
+            $sheet->getStyle($tableRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+    
             $sheet->setTitle('All Applications');
-
             $filename = 'All_Applications_' . now()->format('Y-m-d_H-i-s') . '.xlsx';
-
+    
             $writer = new Xlsx($spreadsheet);
-            
             header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             header('Content-Disposition: attachment; filename="' . $filename . '"');
             header('Cache-Control: max-age=0');
-
+    
             $writer->save('php://output');
             exit;
-
+    
         } catch (\Exception $e) {
             \Log::error('Excel export all error: ' . $e->getMessage());
             return back()->with('error', 'Failed to export data. Please try again.');
         }
     }
-
+    
     public function downloadAttachment($id)
     {
         $attachment = ApplicationAttachment::findOrFail($id);

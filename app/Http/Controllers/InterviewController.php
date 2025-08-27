@@ -66,6 +66,9 @@ class InterviewController extends Controller
             'interview_date' => $request->interview_date,
             'applicant_id' => $request->applicant_id,
         ]);
+
+         $application->update(['status' => 'interview scheduled']);
+
     
         $user = $application->user;
         if ($user && $user->email) {

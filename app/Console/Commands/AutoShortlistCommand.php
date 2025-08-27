@@ -9,10 +9,10 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class AutoShortlistCommand extends Command
 {
-    // CLI signature - threshold is optional now
     protected $signature = 'jobs:auto-shortlist {--threshold=} {--requisition-id=} {--force}';
     protected $description = 'Run auto-shortlisting for job requisitions, update statuses and notify non-shortlisted applicants';
 
@@ -21,46 +21,42 @@ class AutoShortlistCommand extends Command
         $requisitionId = $this->option('requisition-id');
         $force = $this->option('force');
 
-        // Load shortlisting settings
         $settings = ShortlistingSetting::first();
-
         if (!$settings) {
             $this->error("Shortlisting settings not found. Please configure them first.");
             return Command::FAILURE;
         }
 
-        // Validate settings weights
         if (!$this->validateSettings($settings)) {
             $this->error("Invalid shortlisting settings configuration.");
             return Command::FAILURE;
         }
 
-        // --- Use CLI threshold if provided, otherwise take from settings ---
         $threshold = $this->option('threshold') 
                      ? (float) $this->option('threshold') 
-                     : ($settings->threshold ?? 70); // default fallback
+                     : ($settings->threshold ?? 70);
 
-       $query = JobRequisition::query();
+        // Validate threshold range
+        if ($threshold < 0 || $threshold > 100) {
+            $this->error("Threshold must be between 0 and 100. Provided: {$threshold}");
+            return Command::FAILURE;
+        }
 
-                    // Filter by specific requisition ID if provided
-                    if ($requisitionId) {
-                        $query->where('id', $requisitionId);
+        $query = JobRequisition::query();
 
-                        if (!$force) {
-                            $query->where('auto_shortlisting_completed', false);
-                        }
+        if ($requisitionId) {
+            $query->where('id', $requisitionId);
+            if (!$force) {
+                $query->where('auto_shortlisting_completed', false);
+            }
+        } else {
+            $query->where('auto_shortlisting_completed', false);
+        }
 
-                        // Only run if job is closed
-                        $query->where('job_status', 'closed');
+        // Only process closed jobs
+        $query->where('job_status', 'closed');
 
-                    } else {
-                        // Only closed jobs that haven't been short-listed yet
-                        $query->where('job_status', 'closed')
-                            ->where('auto_shortlisting_completed', false);
-                    }
-
-                    $requisitions = $query->get();
-
+        $requisitions = $query->get();
 
         if ($requisitions->isEmpty()) {
             $msg = $requisitionId 
@@ -89,7 +85,10 @@ class AutoShortlistCommand extends Command
                 }
             } catch (\Exception $e) {
                 $this->error("❌ Job Requisition #{$requisition->id} failed: {$e->getMessage()}");
-                Log::error("Auto-shortlisting failed for Job Requisition #{$requisition->id}: " . $e->getMessage());
+                Log::error("Auto-shortlisting failed for Job Requisition #{$requisition->id}: " . $e->getMessage(), [
+                    'requisition_id' => $requisition->id,
+                    'exception' => $e
+                ]);
                 $failureCount++;
             }
         }
@@ -100,400 +99,400 @@ class AutoShortlistCommand extends Command
 
     protected function processRequisition(JobRequisition $requisition, float $threshold, ShortlistingSetting $settings, bool $force = false): bool
     {
-        if (!$force && $requisition->auto_shortlisting_completed) {
-            $this->warn("⚠️ Job Requisition #{$requisition->id} already processed.");
-            return true;
-        }
-
         if ($force && $requisition->auto_shortlisting_completed) {
             $this->info("🔄 Job Requisition #{$requisition->id}: Force re-running shortlisting...");
         }
 
-        $applications = $requisition->applications()
-            ->with(['user.skills', 'user.experiences', 'user.education', 'user.qualifications'])
-            ->get();
+        // Use database transaction for data integrity
+        return DB::transaction(function() use ($requisition, $threshold, $settings, $force) {
+            $applications = $requisition->applications()
+                ->with(['user.skills', 'user.experiences', 'user.education', 'user.qualifications'])
+                ->get();
 
-        if ($applications->isEmpty()) {
-            $this->warn("⚠️ Job Requisition #{$requisition->id} has no applications.");
+            if ($applications->isEmpty()) {
+                $this->warn("⚠️ Job Requisition #{$requisition->id} has no applications.");
+                $requisition->update([
+                    'auto_shortlisting_completed' => true,
+                    'auto_shortlisting_completed_at' => now()
+                ]);
+                return true;
+            }
+
+            $shortlisted = collect();
+            $rejected = collect();
+            $jobSkills = $requisition->skills ? $requisition->skills->pluck('name')->toArray() : [];
+            $totalJobSkills = count($jobSkills);
+            $minExperience = (float) ($requisition->min_experience ?? 0);
+
+            foreach ($applications as $application) {
+                $user = $application->user;
+                if (!$user) {
+                    $this->warn("⚠️ Application #{$application->id} has no associated user. Skipping...");
+                    continue;
+                }
+
+                $scores = $this->calculateApplicationScores($user, $jobSkills, $totalJobSkills, $minExperience, $requisition, $settings);
+
+                // Update or create score record
+                $application->score()->updateOrCreate([], [
+                    'skills_score'        => $scores['skills_score'],
+                    'experience_score'    => $scores['experience_score'],
+                    'education_score'     => $scores['education_score'],
+                    'qualification_bonus' => $scores['qualification_bonus'],
+                    'total_score'         => $scores['total_score'],
+                ]);
+
+                // Determine new status
+                $potentialThreshold = $threshold - 10; // e.g., 10 points below main threshold
+
+                if ($scores['total_score'] >= $threshold) {
+                    $newStatus = 'shortlisted';
+                } elseif ($scores['total_score'] >= $potentialThreshold) {
+                    $newStatus = 'review';
+                } else {
+                    $newStatus = 'rejected';
+                }
+                                $oldStatus = $application->status;
+                
+                // Update application status
+                $application->status = $newStatus;
+                $application->saveQuietly();
+
+                // Collect for notifications and logging
+                if ($newStatus === 'shortlisted') {
+                    $shortlisted->push($application);
+                } else {
+                    $rejected->push($application);
+                }
+
+                // Log status changes for audit
+                if ($force && $oldStatus !== $newStatus) {
+                    Log::info("Application #{$application->id} status changed from '{$oldStatus}' to '{$newStatus}' (Score: {$scores['total_score']}%)");
+                }
+            }
+
+            // Update requisition completion status
             $requisition->update([
                 'auto_shortlisting_completed' => true,
                 'auto_shortlisting_completed_at' => now()
             ]);
+
+            $this->info("✅ Job Requisition #{$requisition->id}: {$shortlisted->count()}/{$applications->count()} shortlisted, {$rejected->count()} rejected.");
+
+            // Send notifications to rejected applicants (if mail class exists and is configured)
+         /*    if (class_exists(ApplicationNotShortlistedMail::class) && $rejected->isNotEmpty()) {
+                $this->sendRejectionNotifications($rejected, $requisition);
+            } */
+
             return true;
-        }
+        });
+    }
 
-        $shortlisted = collect();
-        $jobSkills = $requisition->skills ? $requisition->skills->pluck('name')->toArray() : [];
-        $totalJobSkills = count($jobSkills);
-        $minExperience = (float) ($requisition->min_experience ?? 0);
-
-        foreach ($applications as $application) {
-            $user = $application->user;
-            if (!$user) continue;
-
-            $scores = $this->calculateApplicationScores($user, $jobSkills, $totalJobSkills, $minExperience, $requisition, $settings);
-
-            $application->score()->updateOrCreate([], [
-                'skills_score'        => $scores['skills_score'],
-                'experience_score'    => $scores['experience_score'],
-                'education_score'     => $scores['education_score'],
-                'qualification_bonus' => $scores['qualification_bonus'],
-                'total_score'         => $scores['total_score'],
-            ]);
-
-            if ($scores['total_score'] >= $threshold) {
-                $application->status = 'shortlisted';
-                $shortlisted->push($application);
+    protected function sendRejectionNotifications($rejectedApplications, JobRequisition $requisition): void
+    {
+        $notificationCount = 0;
+        foreach ($rejectedApplications as $application) {
+            try {
+               /*  if ($application->user && $application->user->email) {
+                    Mail::to($application->user->email)
+                        ->send(new ApplicationNotShortlistedMail($application, $requisition));
+                    $notificationCount++;
+                } */
+            } catch (\Exception $e) {
+                Log::warning("Failed to send rejection notification to application #{$application->id}: " . $e->getMessage());
             }
-
-            $application->saveQuietly();
         }
-
-        $notShortlistedCount = 0;
-        if (!$force || !$requisition->auto_shortlisting_completed) {
-            $notShortlistedCount = $this->processNonShortlistedApplications($requisition);
-        }
-
-        $requisition->update([
-            'auto_shortlisting_completed' => true,
-            'auto_shortlisting_completed_at' => now()
-        ]);
-
-        $this->info("✅ Job Requisition #{$requisition->id}: {$shortlisted->count()}/{$applications->count()} shortlisted, {$notShortlistedCount} rejected.");
-
-        return true;
+        $this->info("📧 Sent {$notificationCount} rejection notifications.");
     }
 
     protected function calculateApplicationScores($user, array $jobSkills, int $totalJobSkills, float $minExperience, JobRequisition $requisition, ShortlistingSetting $settings): array
     {
-        // Enhanced skills matching with more lenient scoring and keyword matching
+        // Skills Score
         $userSkills = $user->skills ? $user->skills->pluck('name')->toArray() : [];
         $matchedSkillsCount = $this->countMatchedSkills($jobSkills, $userSkills);
-        
-        // More lenient skills scoring - full marks for matching a reasonable portion
         $skillsFraction = $this->calculateSkillsFraction($matchedSkillsCount, $totalJobSkills);
         $skillsScore = $skillsFraction * ($settings->skills_weight ?? 0);
 
+        // Experience Score
         $totalExperienceYears = $this->calculateTotalExperienceYears($user);
         $scoringMinExperience = $minExperience > 0 ? max($minExperience, 1) : 1;
         $experienceFraction = $totalExperienceYears <= 0 ? 0 : min($totalExperienceYears / $scoringMinExperience, 1);
         $experienceScore = $experienceFraction * ($settings->experience_weight ?? 0);
 
+        // Education Score
         $requiredEducationLevel = $requisition->required_education_level ?? null;
         $requiredAreasOfStudy = $requisition->required_areas_of_study ?? [];
-        $educationFraction = $this->calculateEducationScore($user, $requiredEducationLevel, $requiredAreasOfStudy) / 100;
+        $educationPercentage = $this->calculateEducationScore($user, $requiredEducationLevel, $requiredAreasOfStudy);
+        $educationFraction = $educationPercentage / 100;
         $educationScore = $educationFraction * ($settings->education_weight ?? 0);
 
+        // Qualification Bonus
         $hasQualification = $user->qualifications && $user->qualifications->isNotEmpty();
         $qualificationBonusScore = $hasQualification ? ($settings->qualification_bonus ?? 0) : 0;
 
-        $totalWeight = ($settings->skills_weight ?? 0) + ($settings->experience_weight ?? 0) + ($settings->education_weight ?? 0) + ($settings->qualification_bonus ?? 0);
-        $rawTotal = $skillsScore + $experienceScore + $educationScore + $qualificationBonusScore;
-        $totalScore = $totalWeight > 0 ? min(($rawTotal / $totalWeight) * 100, 100) : 0;
+        // Calculate total score (normalized to 100%)
+        $totalWeight = ($settings->skills_weight ?? 0) + ($settings->experience_weight ?? 0) + ($settings->education_weight ?? 0);
+        
+        // Prevent division by zero
+        if ($totalWeight <= 0) {
+            $this->warn("⚠️ Total weight for scoring is 0. Check shortlisting settings.");
+            $totalScore = 0;
+        } else {
+            $rawTotal = $skillsScore + $experienceScore + $educationScore;
+            $baseScore = ($rawTotal / $totalWeight) * 100;
+            $totalScore = min($baseScore + (($qualificationBonusScore / $totalWeight) * 100), 100);
+        }
 
         return [
             'skills_score' => round($skillsScore, 2),
             'experience_score' => round($experienceScore, 2),
             'education_score' => round($educationScore, 2),
-            'education_percentage' => round($educationFraction * 100, 2),
+            'education_percentage' => round($educationPercentage, 2),
             'qualification_bonus' => round($qualificationBonusScore, 2),
             'total_score' => round($totalScore, 2),
         ];
     }
-
-    /**
-     * Calculate skills fraction with more lenient scoring
-     * Users can get full marks without matching all skills
-     */
     protected function calculateSkillsFraction(float $matchedSkillsCount, int $totalJobSkills): float
     {
-        if ($totalJobSkills == 0) {
-            return 1.0; // No skills required, full score
+        if ($totalJobSkills == 0) return 1.0; // No skills required = perfect match
+        
+        $matchPercentage = $matchedSkillsCount / $totalJobSkills;
+        
+        // Option 2: Boosted scoring - more generous below 60%
+        if ($matchPercentage >= 0.6) {
+            return 1.0; // 60%+ skills = 100% score
+        } elseif ($matchPercentage >= 0.3) {
+            // 30-59% skills get boosted scoring
+            // Scale 30-60% to 50-100% (more generous boost)
+            return 0.5 + (($matchPercentage - 0.3) / 0.3) * 0.5;
+        } else {
+            // 0-30% skills = proportional (0-30% score)
+            return $matchPercentage;
         }
-        
-        if ($matchedSkillsCount == 0) {
-            return 0.0; // No skills matched, no score
-        }
-        
-        // Graduated scoring - get higher fractions for partial matches
-        // This gives diminishing returns but allows full marks with fewer skills
-        
-        // For 1-2 skills: need 100% match
-        if ($totalJobSkills <= 2) {
-            return $matchedSkillsCount / $totalJobSkills;
-        }
-        
-        // For 3-4 skills: can get full marks with 75% match
-        if ($totalJobSkills <= 4) {
-            $threshold = ceil($totalJobSkills * 0.75);
-            if ($matchedSkillsCount >= $threshold) {
-                return 1.0;
-            }
-            return $matchedSkillsCount / $threshold;
-        }
-        
-        // For 5+ skills: can get full marks with 60% match
-        $threshold = ceil($totalJobSkills * 0.6);
-        if ($matchedSkillsCount >= $threshold) {
-            return 1.0;
-        }
-        
-        // Scale score based on how close they are to the threshold
-        return $matchedSkillsCount / $threshold;
     }
 
     protected function countMatchedSkills(array $jobSkills, array $userSkills): float
     {
-        $matchedCount = 0;
-
-        foreach ($jobSkills as $jobSkill) {
-            if ($this->skillMatches($jobSkill, $userSkills)) {
-                $matchedCount++;
-            }
-        }
-
-        return $matchedCount;
+        // Get all keywords from all job skills combined
+        $allJobKeywords = $this->getAllKeywords($jobSkills);
+        
+        // Get all keywords from all user skills combined  
+        $allUserKeywords = $this->getAllKeywords($userSkills);
+        
+        // Find how many job keywords the user has
+        $matchingKeywords = array_intersect($allJobKeywords, $allUserKeywords);
+        $matchedCount = count($matchingKeywords);
+        
+        // Return the count of matched keywords
+        return (float) $matchedCount;
     }
 
-    protected function skillMatches(string $jobSkill, array $userSkills): bool
+    protected function getAllKeywords(array $skills): array
     {
-        $jobSkillNormalized = $this->normalizeSkill($jobSkill);
+        $allKeywords = [];
         
-        foreach ($userSkills as $userSkill) {
-            $userSkillNormalized = $this->normalizeSkill($userSkill);
-            
-            // Exact match after normalization
-            if ($jobSkillNormalized === $userSkillNormalized) {
-                return true;
-            }
-            
-            // Contains match (either direction)
-            if (strpos($userSkillNormalized, $jobSkillNormalized) !== false || 
-                strpos($jobSkillNormalized, $userSkillNormalized) !== false) {
-                return true;
-            }
-            
-            // Check for common skill variations and synonyms
-            if ($this->areSkillVariations($jobSkillNormalized, $userSkillNormalized)) {
-                return true;
-            }
-
-            // Enhanced keyword matching for related terms
-            if ($this->hasRelatedKeywords($jobSkillNormalized, $userSkillNormalized)) {
-                return true;
-            }
+        foreach ($skills as $skill) {
+            $keywords = $this->extractKeywords($skill);
+            $allKeywords = array_merge($allKeywords, $keywords);
         }
         
-        return false;
+        // Remove duplicates - each keyword only counts once
+        return array_unique($allKeywords);
     }
 
-    protected function normalizeSkill(string $skill): string
+    protected function extractKeywords(string $skill): array
     {
-        // Remove common variations and normalize
+        // Convert to lowercase and clean
         $skill = strtolower(trim($skill));
         
-        // Remove common words/suffixes
-        $removeWords = ['.js', '.net', ' programming', ' development', ' developer', ' language', ' framework', ' technology', ' skills', ' skill'];
-        $skill = str_replace($removeWords, '', $skill);
-        
-        // Remove special characters and extra spaces
-        $skill = preg_replace('/[^\w\s]/', ' ', $skill);
-        $skill = preg_replace('/\s+/', ' ', $skill);
-        
-        return trim($skill);
-    }
-
-    protected function areSkillVariations(string $skill1, string $skill2): bool
-    {
-        // Define common skill variations
-        $variations = [
-            'javascript' => ['js', 'ecmascript', 'javascript', 'java script'],
-            'python' => ['python', 'python3', 'py', 'python programming'],
-            'csharp' => ['c#', 'csharp', 'c sharp', 'dotnet', '.net', 'dot net'],
-            'nodejs' => ['node.js', 'nodejs', 'node', 'javascript backend', 'node js'],
-            'reactjs' => ['react.js', 'reactjs', 'react', 'react framework', 'react js'],
-            'vuejs' => ['vue.js', 'vuejs', 'vue', 'vue framework', 'vue js'],
-            'angular' => ['angular.js', 'angularjs', 'angular', 'angular framework'],
-            'mysql' => ['mysql', 'my sql', 'mysql database'],
-            'postgresql' => ['postgresql', 'postgres', 'postgre sql', 'postgres sql'],
-            'mongodb' => ['mongodb', 'mongo db', 'mongo', 'nosql'],
-            'photoshop' => ['photoshop', 'adobe photoshop', 'ps', 'photo shop'],
-            'illustrator' => ['illustrator', 'adobe illustrator', 'ai'],
-            'html' => ['html', 'html5', 'hypertext markup language', 'markup'],
-            'css' => ['css', 'css3', 'cascading style sheets', 'styling'],
-            'php' => ['php', 'php7', 'php8', 'hypertext preprocessor'],
-            'java' => ['java', 'java8', 'java11', 'java17', 'jdk'],
-            'cplusplus' => ['c++', 'cpp', 'c plus plus', 'cplusplus'],
-            'git' => ['git', 'github', 'gitlab', 'version control', 'source control'],
-            'docker' => ['docker', 'containerization', 'containers'],
-            'kubernetes' => ['kubernetes', 'k8s', 'container orchestration'],
-            'aws' => ['aws', 'amazon web services', 'cloud computing'],
-            'azure' => ['azure', 'microsoft azure', 'azure cloud'],
-            'gcp' => ['gcp', 'google cloud platform', 'google cloud'],
-        ];
-        
-        foreach ($variations as $baseSkill => $variantsList) {
-            if ((in_array($skill1, $variantsList) && in_array($skill2, $variantsList))) {
-                return true;
-            }
-        }
-        
-        return false;
-    }
-
-    /**
-     * Check for related keywords that might indicate similar skills
-     * This handles cases where people describe skills differently
-     */
-    protected function hasRelatedKeywords(string $jobSkill, string $userSkill): bool
-    {
-        // Define related keywords and concepts
-        $relatedKeywords = [
-            'web development' => ['frontend', 'backend', 'fullstack', 'full stack', 'web dev', 'website', 'web app', 'html', 'css', 'javascript'],
-            'frontend' => ['ui', 'user interface', 'client side', 'react', 'vue', 'angular', 'html', 'css', 'javascript'],
-            'backend' => ['server side', 'api', 'database', 'server', 'node', 'php', 'python', 'java'],
-            'database' => ['sql', 'mysql', 'postgresql', 'mongodb', 'data management', 'queries'],
-            'mobile development' => ['ios', 'android', 'react native', 'flutter', 'mobile app', 'app development'],
-            'ui design' => ['user interface', 'ux', 'user experience', 'design', 'figma', 'sketch', 'photoshop'],
-            'ux design' => ['user experience', 'ui', 'user interface', 'design', 'wireframes', 'prototyping'],
-            'data analysis' => ['analytics', 'data science', 'excel', 'sql', 'python', 'r', 'statistics'],
-            'project management' => ['pmp', 'agile', 'scrum', 'kanban', 'project coordination', 'team lead'],
-            'digital marketing' => ['seo', 'sem', 'social media', 'content marketing', 'google ads', 'facebook ads'],
-            'graphic design' => ['photoshop', 'illustrator', 'indesign', 'visual design', 'branding', 'logo design'],
-            'accounting' => ['bookkeeping', 'financial reporting', 'quickbooks', 'excel', 'financial analysis'],
-            'sales' => ['business development', 'lead generation', 'customer relations', 'crm', 'revenue'],
-            'customer service' => ['customer support', 'help desk', 'client relations', 'support', 'communication'],
-            'writing' => ['content writing', 'copywriting', 'technical writing', 'blog writing', 'content creation'],
-            'devops' => ['ci cd', 'deployment', 'automation', 'docker', 'kubernetes', 'aws', 'cloud'],
-            'testing' => ['qa', 'quality assurance', 'automation testing', 'manual testing', 'selenium'],
-            'machine learning' => ['ai', 'artificial intelligence', 'data science', 'python', 'tensorflow', 'deep learning'],
-        ];
-
-        foreach ($relatedKeywords as $concept => $keywords) {
-            $jobSkillMatches = $this->containsAnyKeyword($jobSkill, [$concept, ...$keywords]);
-            $userSkillMatches = $this->containsAnyKeyword($userSkill, [$concept, ...$keywords]);
+        // Remove common noise patterns using regex
+        $cleaningPatterns = [
+            // Remove experience qualifiers
+            '/\b\d+[\+\-]?\s*(years?|yrs?|months?|mo)\s*(of\s*)?(experience|exp)?\b/i',
             
-            if ($jobSkillMatches && $userSkillMatches) {
-                return true;
-            }
-        }
-
-        // Check for partial word matches (useful for compound skills)
-        $jobWords = explode(' ', $jobSkill);
-        $userWords = explode(' ', $userSkill);
+            // Remove skill level descriptors
+            '/\b(beginner|intermediate|advanced|expert|proficient|strong|excellent|good|solid|proven|basic)\b/i',
+            
+            // Remove generic skill terms
+            '/\b(skills?|abilities?|knowledge|expertise|experience|exp)\b/i',
+            
+            // Remove common phrases
+            '/\b(working\s+(with|in)|experience\s+(with|in)|knowledge\s+of|familiar\s+with)\b/i',
+            
+            // Remove version numbers
+            '/\b(v\d+|version\s*\d+|\d+\.\d+)\b/i',
+            
+            // Remove common connecting words
+            '/\b(and|or|with|in|of|for|at|to|from|using|through|including|such|as|like|related)\b/i',
+            
+            // Remove articles and basic verbs
+            '/\b(the|a|an|is|are|was|were|be|been|have|has|had|do|does|did|will|would|could|should)\b/i'
+        ];
         
-        foreach ($jobWords as $jobWord) {
-            if (strlen($jobWord) >= 4) { // Only check meaningful words
-                foreach ($userWords as $userWord) {
-                    if (strlen($userWord) >= 4 && 
-                        (strpos($userWord, $jobWord) !== false || strpos($jobWord, $userWord) !== false)) {
-                        return true;
-                    }
-                }
+        foreach ($cleaningPatterns as $pattern) {
+            $skill = preg_replace($pattern, ' ', $skill);
+        }
+        
+        // Clean up extra whitespace
+        $skill = preg_replace('/\s+/', ' ', trim($skill));
+        
+        // Split on various delimiters
+        $words = preg_split('/[\s\-_,\/\\\\&|]+/', $skill);
+        $keywords = [];
+        
+        foreach ($words as $word) {
+            // Clean punctuation but keep # + . for tech terms like C#, .NET
+            $word = trim($word, '.,;:!?()[]{}"\'+');
+            
+            // Keep meaningful words
+            if (strlen($word) >= 2 && 
+                !is_numeric($word) &&
+                !empty(trim($word))) {
+                $keywords[] = $word;
             }
         }
-
-        return false;
+        
+        return array_unique(array_filter($keywords));
     }
 
-    /**
-     * Check if a skill contains any of the given keywords
-     */
-    protected function containsAnyKeyword(string $skill, array $keywords): bool
+    // Simple debugging to see keyword matches
+    protected function debugSkillMatch(array $jobSkills, array $userSkills): array
     {
-        foreach ($keywords as $keyword) {
-            if (strpos($skill, $keyword) !== false) {
-                return true;
-            }
+        $allJobKeywords = $this->getAllKeywords($jobSkills);
+        $allUserKeywords = $this->getAllKeywords($userSkills);
+        $matchingKeywords = array_intersect($allJobKeywords, $allUserKeywords);
+        $missingKeywords = array_diff($allJobKeywords, $allUserKeywords);
+        
+        $debug = [
+            'job_skills' => $jobSkills,
+            'user_skills' => $userSkills,
+            'all_job_keywords' => array_values($allJobKeywords),
+            'all_user_keywords' => array_values($allUserKeywords),
+            'matching_keywords' => array_values($matchingKeywords),
+            'missing_keywords' => array_values($missingKeywords),
+            'match_count' => count($matchingKeywords),
+            'total_job_keywords' => count($allJobKeywords),
+            'match_percentage' => count($allJobKeywords) > 0 ? (count($matchingKeywords) / count($allJobKeywords)) * 100 : 0,
+            'final_score' => $this->calculateSkillsFraction(count($matchingKeywords), count($allJobKeywords))
+        ];
+        
+        return $debug;
+    }
+
+    protected function calculateTotalExperienceYears($user): float
+    {
+        if (!$user->experiences || $user->experiences->isEmpty()) {
+            return 0.0;
         }
-        return false;
-    }
 
-    protected function processNonShortlistedApplications(JobRequisition $requisition): int
-    {
-        $notShortlisted = $requisition->applications()
-            ->whereNotIn('status', ['shortlisted', 'hired', 'offer sent'])
-            ->with('user')
-            ->get();
-
-        $processedCount = 0;
-
-        foreach ($notShortlisted as $application) {
+        $periods = [];
+        foreach ($user->experiences as $exp) {
+            if (!$exp->start_date) continue;
+            
             try {
-                $application->status = 'rejected';
-                $application->saveQuietly();
-
-                if ($application->user && $application->user->email) {
-                    Mail::to($application->user->email)->send(
-                        new ApplicationNotShortlistedMail($application->user->name, $requisition->title)
-                    );
-                    $processedCount++;
-                }
-            } catch (\Exception $mailException) {
-                $this->warn("⚠️ Failed to email {$application->user->email}: {$mailException->getMessage()}");
-                Log::error("Email failure for application ID {$application->id}: " . $mailException->getMessage());
+                $start = Carbon::parse($exp->start_date);
+                $end = $exp->end_date ? Carbon::parse($exp->end_date) : Carbon::now();
+                
+                // Skip invalid date ranges
+                if ($end->lt($start)) continue;
+                
+                $periods[] = ['start' => $start, 'end' => $end];
+            } catch (\Exception $e) {
+                // Skip invalid dates
+                Log::warning("Invalid date in experience for user {$user->id}: " . $e->getMessage());
+                continue;
             }
         }
 
-        return $processedCount;
+        if (empty($periods)) return 0.0;
+
+        // Sort periods by start date
+        usort($periods, fn($a, $b) => $a['start']->timestamp <=> $b['start']->timestamp);
+
+        // Merge overlapping periods
+        $totalDays = 0;
+        $current = $periods[0];
+
+        for ($i = 1; $i < count($periods); $i++) {
+            $next = $periods[$i];
+            
+            // If next period overlaps with current, merge them
+            if ($next['start']->lte($current['end'])) {
+                $current['end'] = $current['end']->gt($next['end']) ? $current['end'] : $next['end'];
+            } else {
+                // No overlap, add current period to total and move to next
+                $totalDays += $current['start']->diffInDays($current['end']) + 1; // +1 to include both start and end days
+                $current = $next;
+            }
+        }
+
+        // Add the last period
+        $totalDays += $current['start']->diffInDays($current['end']) + 1;
+
+        return round($totalDays / 365.25, 1); // Account for leap years
     }
 
-    protected function calculateEducationScore($user, $requiredEducationLevel, $requiredAreasOfStudy = []): float 
+    protected function mapEducationLevelHierarchy(): array
     {
-        if (!$user->education || $user->education->isEmpty()) return 0.0;
-        if (!$requiredEducationLevel) return 100.0;
+        // Higher index = higher level
+        return [
+            'High School' => 1,
+            'Certificate' => 2,
+            'Diploma' => 3,
+            'Associate Degree' => 4,
+            "Bachelor's Degree" => 5,
+            'Postgraduate Diploma' => 6,
+            "Master's Degree" => 7,
+            'Doctorate (PhD)' => 8,
+        ];
+    }
     
-        $requiredScore = $this->mapEducationLevelToScore($requiredEducationLevel);
+    protected function calculateEducationScore($user, $requiredEducationLevel, $requiredAreasOfStudy = []): float
+    {
+        if (!$user->education || $user->education->isEmpty()) {
+            return $requiredEducationLevel ? 0.0 : 100.0;
+        }
+        
+        if (!$requiredEducationLevel) {
+            return 100.0; // No education requirement = perfect score
+        }
+    
+        $hierarchy = $this->mapEducationLevelHierarchy();
+        $requiredRank = $hierarchy[trim($requiredEducationLevel)] ?? 0;
         $bestScore = 0.0;
     
         foreach ($user->education as $education) {
             $educationLevel = $education->education_level ?? null;
-            $educationStatus = strtolower($education->status ?? '');
+            $educationStatus = strtolower(trim($education->status ?? ''));
             $fieldOfStudy = $education->field_of_study ?? null;
             $hasEndDate = !empty($education->end_date);
     
             if (!$educationLevel) continue;
     
-            $educationLevelScore = $this->mapEducationLevelToScore($educationLevel);
-            
-            // Three main criteria
-            $meetsLevelRequirement = $educationLevelScore >= $requiredScore;
+            $applicantRank = $hierarchy[trim($educationLevel)] ?? 0;
+    
+            // Check requirements
+            $meetsLevelRequirement = $applicantRank >= $requiredRank;
             $meetsFieldRequirement = $this->checkFieldOfStudyMatch($fieldOfStudy, $requiredAreasOfStudy);
             $isComplete = ($educationStatus === 'complete' && $hasEndDate);
-            
+    
             $currentScore = 0.0;
-            
+    
+            // Scoring logic
             if ($meetsLevelRequirement && $meetsFieldRequirement && $isComplete) {
-                // Perfect match: 100%
-                $currentScore = 100.0;
-                
+                $currentScore = 100; // Perfect match
             } elseif ($meetsLevelRequirement && $meetsFieldRequirement) {
-                // Right level + right field, but incomplete: 70%
-                $currentScore = 70.0;
-                
+                $currentScore = 70; // Good match but not complete
             } elseif ($meetsLevelRequirement && $isComplete) {
-                // Right level + complete, but wrong field: 40%
-                $currentScore = 40.0;
-                
+                $currentScore = 40; // Right level, wrong field, but complete
             } elseif ($meetsFieldRequirement && $isComplete) {
-                // Right field + complete, but level too low: 30%
-                $currentScore = 30.0;
-                
+                $currentScore = 30; // Right field, lower level, complete
             } elseif ($meetsLevelRequirement) {
-                // Only right level (wrong field, incomplete): 25%
-                $currentScore = 25.0;
-                
+                $currentScore = 25; // Right level, wrong field, incomplete
             } elseif ($meetsFieldRequirement) {
-                // Only right field (level too low, incomplete): 15%
-                $currentScore = 15.0;
-                
+                $currentScore = 15; // Right field, lower level, incomplete
             } elseif ($isComplete) {
-                // Only complete (wrong level, wrong field): 10%
-                $currentScore = 10.0;
-                
-            } else {
-                // None of the criteria met: 0%
-                $currentScore = 0.0;
+                $currentScore = 10; // Wrong field and level, but at least complete
             }
     
             $bestScore = max($bestScore, $currentScore);
@@ -501,100 +500,53 @@ class AutoShortlistCommand extends Command
     
         return round($bestScore, 2);
     }
-    
+
     protected function checkFieldOfStudyMatch($userFieldOfStudy, $requiredAreasOfStudy): bool
     {
-        // If no field requirements, consider it a match
-        if (empty($requiredAreasOfStudy)) return true;
+        if (empty($requiredAreasOfStudy) || !is_array($requiredAreasOfStudy)) {
+            return true; // No field requirement
+        }
         
-        // If user has no field of study, no match
-        if (empty($userFieldOfStudy)) return false;
-    
+        if (empty($userFieldOfStudy)) {
+            return false; // User has no field specified
+        }
+
         $userField = strtolower(trim($userFieldOfStudy));
         
         foreach ($requiredAreasOfStudy as $requiredArea) {
+            if (empty($requiredArea)) continue;
+            
             $requiredField = strtolower(trim($requiredArea));
             
             // Exact match
             if ($userField === $requiredField) return true;
             
-            // Check if either contains the other (handles variations)
-            if (strpos($userField, $requiredField) !== false || 
-                strpos($requiredField, $userField) !== false) {
+            // Partial match (contains)
+            if (strpos($userField, $requiredField) !== false || strpos($requiredField, $userField) !== false) {
                 return true;
             }
         }
-        
+
         return false;
-    }
-
-    protected function calculateTotalExperienceYears($user): float
-    {
-        if (!$user->experiences || $user->experiences->isEmpty()) return 0.0;
-
-        try {
-            $periods = [];
-            foreach ($user->experiences as $experience) {
-                if (!$experience->start_date) continue;
-
-                $startDate = Carbon::parse($experience->start_date);
-                $endDate = $experience->end_date ? Carbon::parse($experience->end_date) : Carbon::now();
-                if ($endDate->lt($startDate)) continue;
-
-                $periods[] = ['start' => $startDate, 'end' => $endDate];
-            }
-
-            if (empty($periods)) return 0.0;
-
-            usort($periods, fn($a, $b) => $a['start']->timestamp <=> $b['start']->timestamp);
-
-            $totalDays = 0;
-            $currentStart = $periods[0]['start'];
-            $currentEnd = $periods[0]['end'];
-
-            for ($i = 1; $i < count($periods); $i++) {
-                $period = $periods[$i];
-                if ($period['start']->lte($currentEnd)) {
-                    $currentEnd = $currentEnd->gt($period['end']) ? $currentEnd : $period['end'];
-                } else {
-                    $totalDays += $currentStart->diffInDays($currentEnd);
-                    $currentStart = $period['start'];
-                    $currentEnd = $period['end'];
-                }
-            }
-
-            $totalDays += $currentStart->diffInDays($currentEnd);
-            $totalYears = $totalDays / 365.25;
-            return round($totalYears, 1);
-
-        } catch (\Exception $e) {
-            Log::warning("Error calculating experience years for user {$user->id}: " . $e->getMessage());
-            return 0.0;
-        }
-    }
-
-    protected function mapEducationLevelToScore($level): float
-    {
-        $levels = [
-            'High School'          => 5.0,
-            'Certificate'          => 6.0,
-            'Diploma'              => 7.0,
-            'Associate Degree'     => 7.5,
-            "Bachelor's Degree"    => 9.0,
-            'Postgraduate Diploma' => 9.5,
-            "Master's Degree"      => 10.0,
-            'Doctorate (PhD)'      => 10.0,
-        ];
-        $key = trim($level);
-        return $levels[$key] ?? 0.0;
     }
 
     protected function validateSettings(ShortlistingSetting $settings): bool
     {
         $requiredFields = ['skills_weight', 'experience_weight', 'education_weight'];
+        
         foreach ($requiredFields as $field) {
-            if (!isset($settings->$field) || !is_numeric($settings->$field)) return false;
+            if (!isset($settings->$field) || !is_numeric($settings->$field) || $settings->$field < 0) {
+                $this->error("Invalid or missing setting: {$field}");
+                return false;
+            }
         }
+        
+        // Check if qualification_bonus exists and is valid
+        if (isset($settings->qualification_bonus) && (!is_numeric($settings->qualification_bonus) || $settings->qualification_bonus < 0)) {
+            $this->error("Invalid qualification_bonus setting");
+            return false;
+        }
+        
         return true;
     }
 }

@@ -8,8 +8,14 @@
         
         <!-- Minimal Header -->
         <div class="page-header">
-            <h3 class="fw-bold mb-3">{{ $application->user->name ?? 'Unknown Applicant' }}</h3>
-            <ul class="breadcrumbs mb-3">
+            <h3 class="fw-bold mb-3">
+                {{ $application->user->profile
+                    ? $application->user->profile->first_name . ' ' . $application->user->profile->last_name 
+                    : 'Unknown Applicant' 
+                }}
+            </h3>
+            
+                        <ul class="breadcrumbs mb-3">
                 <li class="nav-home"><a href="{{ route('job-applications.index') }}"><i class="icon-home"></i></a></li>
                 <li class="separator"><i class="icon-arrow-right"></i></li>
                 <li class="nav-item"><a href="#">Application Details</a></li>
@@ -185,7 +191,7 @@
                                     </span>
                                 </div>
                                 @if($exp->description)
-                                <p class="text-muted mt-2 mb-0 small">{{ $exp->description }}</p>
+                                <p class="text-muted mt-2 mb-0 small">{!! $exp->description !!}</p>
                                 @endif
                             </div>
                             @endforeach
@@ -285,10 +291,23 @@
                                 </form>
 
                             @elseif($status !== 'rejected' && $status !== 'hired')
+                            
+                    
                                 @if(!$hasInterview)
                                     <button class="btn btn-primary btn-round w-100 mb-2" data-bs-toggle="modal" data-bs-target="#scheduleInterviewModal">
                                         <i class="fas fa-calendar-plus me-2"></i>Schedule Interview
                                     </button>
+                                @endif
+                                </form>
+                                @if($status === 'review')
+
+                                <form action="{{ route('applications.update-status', $application->id) }}" method="POST" class="mb-2">
+                                    @csrf @method('PATCH')
+                                    <input type="hidden" name="status" value="shortlisted">
+                                    <button class="btn btn-info btn-round w-100">
+                                        <i class="fas fa-star me-2"></i>Shortlist Applicant
+                                    </button>
+                                </form>
                                 @endif
 
                                 @if($hasInterview)
