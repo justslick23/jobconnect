@@ -10,7 +10,7 @@
     <p>Hi {{ $application->user->name }},</p>
 
     <p>
-        Thank you for applying for the position: <strong>{{ $application->jobRequisition->job_title }}</strong>.
+        Thank you for applying for the position: <strong>{{ $application->jobRequisition->title }}</strong>.
     </p>
 
     <p>

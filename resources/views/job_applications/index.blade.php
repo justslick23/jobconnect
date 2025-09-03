@@ -148,6 +148,7 @@
                                                     <select class="form-select form-select-sm filter-status" data-job-id="{{ $req->id }}">
                                                         <option value="">All Statuses</option>
                                                         <option value="submitted">Submitted</option>
+                                                        <option value="review">Under Review</option>
                                                         <option value="shortlisted">Shortlisted</option>
                                                         <option value="hired">Hired</option>
                                                         <option value="rejected">Rejected</option>
@@ -233,7 +234,7 @@
                                                             @if(auth()->user()->isHrAdmin())
                                                                 <td>
                                                                     <div>
-                                                                        <strong>{{ $app->user->name }}</strong>
+                                                                        <strong>{{ $app->user->profile->first_name }} {{ $app->user->profile->last_name }}</strong>
                                                                         <small class="text-muted d-block">{{ $app->user->email }}</small>
                                                                     </div>
                                                                 </td>
@@ -255,7 +256,7 @@
                                                           
                                                                 @if($app->score && $app->score->total_score !== null)
                                                                 
-                                                                    <span class="fw-bold">{{ number_format($app->score->total_score, 2) }}/100</span>
+                                                                    <span class="fw-bold">{{ number_format($app->score->total_score, 2) }}</span>
                                                                     @if($app->score->total_score >= 70)
                                                                         <span class="badge badge-success ms-1">Auto-Shortlisted</span>
                                                                     @endif
@@ -319,252 +320,440 @@
 <script src="https://cdn.datatables.net/1.13.5/js/dataTables.bootstrap5.min.js"></script>
 
 <script>
-    $(document).ready(function() {
-        const dataTables = {};
-        const initializedTables = new Set();
-        const exportStates = new Map();
-    
-        // Initialize DataTable
-        function initDataTable(jobId) {
-            if (initializedTables.has(jobId)) return;
-    
-            const table = $(`#table-${jobId}`);
-            if (!table.length) return;
-    
-            if ($.fn.dataTable.isDataTable(table[0])) {
-                dataTables[jobId] = table.DataTable();
-                return;
-            }
-    
-            try {
-                dataTables[jobId] = table.DataTable({
-                    pageLength: 10,
-                    responsive: true,
-                    order: [[4, 'desc']],
-                    columnDefs: [
-                        { orderable: false, targets: [0, -1] },
-                        { className: 'text-center', targets: [0] }
-                    ],
-                    language: {
-                        search: "Search applications:",
-                        lengthMenu: "Show _MENU_ entries",
-                        info: "Showing _START_ to _END_ of _TOTAL_ applications",
-                        emptyTable: "No applications found",
-                        zeroRecords: "No matching applications found"
-                    },
-                    dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
-                         '<"row"<"col-sm-12"tr>>' +
-                         '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
-                });
-                initializedTables.add(jobId);
-            } catch (error) {
-                console.error('Error initializing DataTable for job', jobId, error);
-            }
+$(document).ready(function() {
+    const dataTables = {};
+    const initializedTables = new Set();
+    const exportStates = new Map();
+
+    // Initialize DataTable
+    function initDataTable(jobId) {
+        if (initializedTables.has(jobId)) return;
+
+        const table = $(`#table-${jobId}`);
+        if (!table.length) return;
+
+        if ($.fn.dataTable.isDataTable(table[0])) {
+            dataTables[jobId] = table.DataTable();
+            return;
         }
-    
-        function destroyDataTable(jobId) {
-            if (dataTables[jobId] && $.fn.dataTable.isDataTable(`#table-${jobId}`)) {
-                dataTables[jobId].destroy();
-                delete dataTables[jobId];
-                initializedTables.delete(jobId);
-            }
-        }
-    
-        function updateBulkActions(jobId) {
-            const selected = $(`.row-select[data-job-id="${jobId}"]:checked`).length;
-            const bulkActions = $(`.bulk-actions[data-job-id="${jobId}"]`);
-            if (selected > 0) {
-                bulkActions.show();
-                bulkActions.find('.bulk-count').text(`${selected} selected`);
-            } else {
-                bulkActions.hide();
-            }
-        }
-    
-        function applyFilters(jobId) {
-            if (!dataTables[jobId]) return;
-    
-            const statusFilter = $(`.filter-status[data-job-id="${jobId}"]`).val();
-            const scoreFilter = $(`.filter-score[data-job-id="${jobId}"]`).val();
-    
-            dataTables[jobId].search('').columns().search('').draw();
-    
-            // Status filter
-            if (statusFilter) {
-                const statusCol = $(`body`).data('user-role') === 'hr_admin' ? 2 : 1;
-                dataTables[jobId].column(statusCol).search(statusFilter, true, false);
-            }
-    
-            // Score filter
-            if (scoreFilter) {
-                const [min, max] = scoreFilter.split('-').map(Number);
-                $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-                    if (settings.nTable.id !== `table-${jobId}`) return true;
-                    const score = parseInt($(settings.nTable).find('tbody tr').eq(dataIndex).attr('data-score')) || 0;
-                    return score >= min && score <= max;
-                });
-            }
-    
-            dataTables[jobId].draw();
-    
-            if (scoreFilter) {
-                $.fn.dataTable.ext.search.pop();
-            }
-        }
-    
-        // Job search & filter
-        function filterJobs() {
-            const searchTerm = $('#jobSearch').val().toLowerCase();
-            const department = $('#departmentFilter').val().toLowerCase();
-    
-            $('.job-item').each(function() {
-                const title = $(this).data('title').toLowerCase();
-                const dept = $(this).data('department').toLowerCase();
-                const visible = (!searchTerm || title.includes(searchTerm)) &&
-                                (!department || dept === department);
-                $(this).toggle(visible);
-                if (!visible) $(this).find('.accordion-collapse').removeClass('show');
-            });
-        }
-    
-        $('#jobSearch').on('keyup', filterJobs);
-        $('#departmentFilter').on('change', filterJobs);
-        $('#clearJobFilters').on('click', function() {
-            $('#jobSearch, #departmentFilter').val('');
-            filterJobs();
-        });
-    
-        // Accordion events
-        $(document).on('shown.bs.collapse', '.accordion-collapse', function() {
-            const jobId = $(this).attr('id').replace('collapse-', '');
-            setTimeout(() => initDataTable(jobId), 100);
-        });
-        $(document).on('hidden.bs.collapse', '.accordion-collapse', function() {
-            const jobId = $(this).attr('id').replace('collapse-', '');
-            setTimeout(() => {
-                if (!$(this).hasClass('show')) destroyDataTable(jobId);
-            }, 500);
-        });
-    
-        // Selection & bulk actions
-        $(document).on('change', '.select-all', function() {
-            const jobId = $(this).data('job-id');
-            const checked = $(this).is(':checked');
-            $(`.row-select[data-job-id="${jobId}"]`).prop('checked', checked);
-            updateBulkActions(jobId);
-        });
-        $(document).on('change', '.row-select', function() {
-            const jobId = $(this).data('job-id');
-            updateBulkActions(jobId);
-            const total = $(`.row-select[data-job-id="${jobId}"]`).length;
-            const checked = $(`.row-select[data-job-id="${jobId}"]:checked`).length;
-            $(`.select-all[data-job-id="${jobId}"]`).prop('checked', total === checked);
-        });
-    
-        // Filter handlers
-        $(document).on('change', '.filter-status, .filter-score', function() {
-            const jobId = $(this).data('job-id');
-            applyFilters(jobId);
-        });
-        $(document).on('click', '.reset-filters', function() {
-            const jobId = $(this).data('job-id');
-            $(`.filter-status[data-job-id="${jobId}"], .filter-score[data-job-id="${jobId}"]`).val('');
-            if (dataTables[jobId]) dataTables[jobId].search('').columns().search('').draw();
-        });
-    
-        // Status update
-        window.updateStatus = function(applicationId, action, event) {
-            const actionLabels = {shortlist:'shortlist', reject:'reject', offer_sent:'mark as offer sent', hired:'mark as hired'};
-            const label = actionLabels[action] || action.replace('_',' ');
-    
-            if (!confirm(`Are you sure you want to ${label} this application?`)) return;
-    
-            const button = event.target.closest('.dropdown-item') || event.target.closest('button');
-            const $btn = $(button);
-            const originalText = $btn.html();
-            $btn.html('<i class="fas fa-spinner fa-spin"></i> Updating...').css('pointer-events','none');
-    
-            $.ajax({
-                url: `/job-applications/${applicationId}/quick-action`,
-                method: 'POST',
-                data: {action, _token:$('meta[name="csrf-token"]').attr('content')},
-                success: function(res) {
-                    if (res.success) {
-                        showToast('success', res.message);
-                        updateStatusBadgeInTable(applicationId, res.new_status, res.status_label);
-                        setTimeout(()=>location.reload(), 1500);
-                    } else showToast('error', res.message || 'Failed to update status');
+
+        try {
+            dataTables[jobId] = table.DataTable({
+                pageLength: 10,
+                responsive: true,
+                order: [[4, 'desc']],
+                columnDefs: [
+                    { orderable: false, targets: [0, -1] },
+                    { className: 'text-center', targets: [0] }
+                ],
+                language: {
+                    search: "Search applications:",
+                    lengthMenu: "Show _MENU_ entries",
+                    info: "Showing _START_ to _END_ of _TOTAL_ applications",
+                    emptyTable: "No applications found",
+                    zeroRecords: "No matching applications found"
                 },
-                error: function(xhr) {
-                    let msg = 'Error updating status. Please try again.';
-                    if(xhr.responseJSON?.message) msg = xhr.responseJSON.message;
-                    if(xhr.status === 403) msg = 'You do not have permission.';
-                    if(xhr.status === 404) msg = 'Application not found.';
-                    if(xhr.status === 422) msg = 'Invalid request.';
-                    showToast('error', msg);
-                    console.error(xhr);
-                },
-                complete: function(){ $btn.html(originalText).css('pointer-events','auto'); }
+                dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+                     '<"row"<"col-sm-12"tr>>' +
+                     '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
             });
+            initializedTables.add(jobId);
+        } catch (error) {
+            console.error('Error initializing DataTable for job', jobId, error);
+        }
+    }
+
+    function destroyDataTable(jobId) {
+        if (dataTables[jobId] && $.fn.dataTable.isDataTable(`#table-${jobId}`)) {
+            dataTables[jobId].destroy();
+            delete dataTables[jobId];
+            initializedTables.delete(jobId);
+        }
+    }
+
+    function updateBulkActions(jobId) {
+        const selected = $(`.row-select[data-job-id="${jobId}"]:checked`).length;
+        const bulkActions = $(`.bulk-actions[data-job-id="${jobId}"]`);
+        if (selected > 0) {
+            bulkActions.show();
+            bulkActions.find('.bulk-count').text(`${selected} selected`);
+        } else {
+            bulkActions.hide();
+        }
+    }
+
+    function applyFilters(jobId) {
+    const table = dataTables[jobId];
+    if (!table) return;
+
+    const statusFilter = $(`.filter-status[data-job-id="${jobId}"]`).val();
+    const scoreFilter = $(`.filter-score[data-job-id="${jobId}"]`).val();
+
+    // Reset previous column searches
+    table.columns().search('');
+
+    // Status filter (applies only to applications of this job)
+    if (statusFilter) {
+        const statusCol = 2; // adjust to the column index of status in applications table
+        table.column(statusCol).search(statusFilter, true, false);
+    }
+
+    // Score filter
+    if (scoreFilter) {
+        const [min, max] = scoreFilter.split('-').map(Number);
+
+        // Use column index instead of data-score attribute
+        const scoreCol = 3; // <-- set to the column index of the score (0-based)
+
+        // Custom search function
+        const filterFn = function(settings, data, dataIndex) {
+            if (settings.nTable.id !== `table-${jobId}`) return true; // only filter this table
+            const score = parseInt(data[scoreCol]) || 0;
+            return score >= min && score <= max;
         };
-    
-        function updateStatusBadgeInTable(applicationId, status, statusLabel){
-            const checkbox = $(`input.row-select[value="${applicationId}"]`);
-            const row = checkbox.closest('tr');
-            if(!row.length) return;
-            const isHrAdmin = $('body').data('user-role')==='hr_admin';
-            const statusCol = isHrAdmin?2:1;
-            const badgeClassMap = {submitted:'badge-info',shortlisted:'badge-warning',rejected:'badge-danger',offer_sent:'badge-primary',hired:'badge-success'};
-            const badgeClass = badgeClassMap[status] || 'badge-secondary';
-            row.find('td').eq(statusCol).html(`<span class="badge ${badgeClass}">${statusLabel}</span>`);
-            row.attr('data-status', status.toLowerCase().replace(' ','_'));
-        }
-    
-        // Toast function
-        function showToast(type, message, duration=5000){
-            $('.toast-notification').remove();
-            const cls = {success:'alert-success', error:'alert-danger', warning:'alert-warning', info:'alert-info'};
-            const icon = {success:'fa-check-circle', error:'fa-exclamation-circle', warning:'fa-exclamation-triangle', info:'fa-info-circle'};
-            const safeMsg = $('<div>').text(message).html();
-            const toast = $(`
-                <div class="toast-notification alert ${cls[type]} alert-dismissible fade show position-fixed shadow-lg"
-                     style="top:20px; right:20px; z-index:9999; min-width:350px; max-width:500px;">
-                    <i class="fas ${icon[type]} me-2"></i>${safeMsg}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>`);
-            $('body').append(toast);
-            setTimeout(()=>toast.fadeOut(500,()=>toast.remove()), duration);
-        }
-    
-        // CSRF setup
-        $.ajaxSetup({headers:{'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')}});
-    
-        // Export handlers
-        function handleExport(jobId, all=false){
-            const btn = all?$('#exportAllBtn'):$(`.export-btn[data-job-id="${jobId}"]`);
-            if(exportStates.get(all?'all':jobId)) return showToast('warning','Export in progress');
-            exportStates.set(all?'all':jobId,true);
-            const originalText = btn.html();
-            btn.html(`<i class="fas fa-spinner fa-spin"></i> Exporting...`).prop('disabled',true);
-            try {
-                window.location.href = all?'/job-applications/export-all':`/job-applications/export/${jobId}`;
-                setTimeout(()=>{
-                    btn.html(originalText).prop('disabled',false);
-                    exportStates.delete(all?'all':jobId);
-                    showToast('success','Export started!');
-                }, all?3000:2000);
-            } catch(e){
-                console.error(e);
-                btn.html(originalText).prop('disabled',false);
-                exportStates.delete(all?'all':jobId);
-                showToast('error','Export failed. Please try again.');
-            }
-        }
-    
-        $(document).on('click', '.export-btn', function(e){ e.preventDefault(); handleExport($(this).data('job-id')) });
-        $('#exportAllBtn').on('click', function(e){ e.preventDefault(); handleExport(null,true) });
-    
+        filterFn._jobId = jobId;
+
+        // Remove any previous filter for this table first
+        $.fn.dataTable.ext.search = $.fn.dataTable.ext.search.filter(fn => !fn._jobId || fn._jobId !== jobId);
+        $.fn.dataTable.ext.search.push(filterFn);
+    }
+
+    table.draw();
+}
+
+
+    // Job search & filter
+    function filterJobs() {
+        const searchTerm = $('#jobSearch').val().toLowerCase();
+        const department = $('#departmentFilter').val().toLowerCase();
+
+        $('.job-item').each(function() {
+            const title = $(this).data('title').toLowerCase();
+            const dept = $(this).data('department').toLowerCase();
+            const visible = (!searchTerm || title.includes(searchTerm)) &&
+                            (!department || dept === department);
+            $(this).toggle(visible);
+            if (!visible) $(this).find('.accordion-collapse').removeClass('show');
+        });
+    }
+
+    $('#jobSearch').on('keyup', filterJobs);
+    $('#departmentFilter').on('change', filterJobs);
+    $('#clearJobFilters').on('click', function() {
+        $('#jobSearch, #departmentFilter').val('');
+        filterJobs();
     });
+
+    // Accordion events
+    $(document).on('shown.bs.collapse', '.accordion-collapse', function() {
+        const jobId = $(this).attr('id').replace('collapse-', '');
+        setTimeout(() => initDataTable(jobId), 100);
+    });
+    
+    $(document).on('hidden.bs.collapse', '.accordion-collapse', function() {
+        const jobId = $(this).attr('id').replace('collapse-', '');
+        setTimeout(() => {
+            if (!$(this).hasClass('show')) destroyDataTable(jobId);
+        }, 500);
+    });
+
+    // Selection & bulk actions
+    $(document).on('change', '.select-all', function() {
+        const jobId = $(this).data('job-id');
+        const checked = $(this).is(':checked');
+        $(`.row-select[data-job-id="${jobId}"]`).prop('checked', checked);
+        updateBulkActions(jobId);
+    });
+    
+    $(document).on('change', '.row-select', function() {
+        const jobId = $(this).data('job-id');
+        updateBulkActions(jobId);
+        const total = $(`.row-select[data-job-id="${jobId}"]`).length;
+        const checked = $(`.row-select[data-job-id="${jobId}"]:checked`).length;
+        $(`.select-all[data-job-id="${jobId}"]`).prop('checked', total === checked);
+    });
+
+    // Filter handlers
+    $(document).on('change', '.filter-status, .filter-score', function() {
+        const jobId = $(this).data('job-id');
+        applyFilters(jobId);
+    });
+    
+    $(document).on('click', '.reset-filters', function() {
+        const jobId = $(this).data('job-id');
+        $(`.filter-status[data-job-id="${jobId}"], .filter-score[data-job-id="${jobId}"]`).val('');
+        if (dataTables[jobId]) dataTables[jobId].search('').columns().search('').draw();
+    });
+
+    // CSRF setup
+    $.ajaxSetup({
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        }
+    });
+
+    // Quick Action Handler (Single Application)
+    window.updateStatus = function(applicationId, action) {
+        const actionLabels = {
+            'shortlist': 'shortlist',
+            'reject': 'reject', 
+            'offer_sent': 'mark as offer sent',
+            'hired': 'mark as hired'
+        };
+        
+        const label = actionLabels[action] || action.replace('_', ' ');
+
+        if (!confirm(`Are you sure you want to ${label} this application?`)) {
+            return;
+        }
+
+        // Show loading state
+        showToast('info', 'Updating application status...');
+
+        $.ajax({
+            url: `/job-applications/${applicationId}/quick-action`,
+            method: 'POST',
+            data: {
+                action: action,
+                _token: $('meta[name="csrf-token"]').attr('content')
+            },
+            success: function(response) {
+                if (response.success) {
+                    showToast('success', response.message);
+                    updateStatusBadgeInTable(response.application_id, response.new_status, response.status_label);
+                    
+                    // Update the row's data attribute
+                    const checkbox = $(`input.row-select[value="${response.application_id}"]`);
+                    const row = checkbox.closest('tr');
+                    row.attr('data-status', response.new_status.toLowerCase().replace(' ', '_'));
+                    
+                    // Uncheck the checkbox after successful update
+                    checkbox.prop('checked', false);
+                    updateBulkActions(checkbox.data('job-id'));
+                } else {
+                    showToast('error', response.message || 'Failed to update status');
+                }
+            },
+            error: function(xhr) {
+                let message = 'Error updating status. Please try again.';
+                
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                } else if (xhr.status === 403) {
+                    message = 'You do not have permission to perform this action.';
+                } else if (xhr.status === 404) {
+                    message = 'Application not found.';
+                } else if (xhr.status === 422) {
+                    message = 'Invalid request data.';
+                }
+                
+                showToast('error', message);
+                console.error('Quick action error:', xhr);
+            }
+        });
+    };
+
+    // Bulk Action Handler
+    $(document).on('click', '.bulk-action', function() {
+        const action = $(this).data('action');
+        const jobId = $(this).data('job-id');
+        const selectedIds = $(`.row-select[data-job-id="${jobId}"]:checked`).map(function() {
+            return $(this).val();
+        }).get();
+
+        if (selectedIds.length === 0) {
+            showToast('warning', 'Please select at least one application.');
+            return;
+        }
+
+        const actionLabels = {
+            'shortlist': 'shortlist',
+            'reject': 'reject',
+            'offer_sent': 'mark as offer sent', 
+            'hired': 'mark as hired'
+        };
+        
+        const label = actionLabels[action] || action.replace('_', ' ');
+        const count = selectedIds.length;
+
+        if (!confirm(`Are you sure you want to ${label} ${count} selected application(s)?`)) {
+            return;
+        }
+
+        // Disable bulk action buttons
+        $(`.bulk-action[data-job-id="${jobId}"]`).prop('disabled', true);
+        showToast('info', `Updating ${count} application(s)...`);
+
+        $.ajax({
+            url: '/job-applications/bulk-action',
+            method: 'POST',
+            data: {
+                action: action,
+                applications: selectedIds,
+                _token: $('meta[name="csrf-token"]').attr('content')
+            },
+            success: function(response) {
+                if (response.success) {
+                    showToast('success', response.message);
+                    
+                    // Update each affected row
+                    response.application_ids.forEach(function(appId) {
+                        updateStatusBadgeInTable(appId, response.new_status, response.status_label);
+                        
+                        // Update row data attribute
+                        const checkbox = $(`input.row-select[value="${appId}"]`);
+                        const row = checkbox.closest('tr');
+                        row.attr('data-status', response.new_status.toLowerCase().replace(' ', '_'));
+                        
+                        // Uncheck the checkbox
+                        checkbox.prop('checked', false);
+                    });
+                    
+                    // Update bulk actions and select-all checkbox
+                    updateBulkActions(jobId);
+                    $(`.select-all[data-job-id="${jobId}"]`).prop('checked', false);
+                    
+                } else {
+                    showToast('error', response.message || 'Failed to update applications');
+                }
+            },
+            error: function(xhr) {
+                let message = 'Error updating applications. Please try again.';
+                
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                } else if (xhr.status === 403) {
+                    message = 'You do not have permission to perform this action.';
+                } else if (xhr.status === 422) {
+                    message = 'Invalid request data.';
+                }
+                
+                showToast('error', message);
+                console.error('Bulk action error:', xhr);
+            },
+            complete: function() {
+                // Re-enable bulk action buttons
+                $(`.bulk-action[data-job-id="${jobId}"]`).prop('disabled', false);
+            }
+        });
+    });
+
+    function updateStatusBadgeInTable(applicationId, status, statusLabel) {
+        const checkbox = $(`input.row-select[value="${applicationId}"]`);
+        const row = checkbox.closest('tr');
+        
+        if (!row.length) return;
+
+        // Determine which column contains the status badge
+        const isHrAdmin = $('body').data('user-role') === 'hr_admin';
+        const statusColumnIndex = isHrAdmin ? 2 : 1;
+        
+        // Badge class mapping
+        const badgeClassMap = {
+            'submitted': 'badge-info',
+            'shortlisted': 'badge-warning', 
+            'rejected': 'badge-danger',
+            'offer sent': 'badge-primary',
+            'offer_sent': 'badge-primary',
+            'hired': 'badge-success'
+        };
+        
+        const badgeClass = badgeClassMap[status] || 'badge-secondary';
+        
+        // Update the status badge
+        row.find('td').eq(statusColumnIndex).html(
+            `<span class="badge ${badgeClass}">${statusLabel}</span>`
+        );
+        
+        // Update row data attribute
+        row.attr('data-status', status.toLowerCase().replace(' ', '_'));
+    }
+
+    // Toast notification function
+    function showToast(type, message, duration = 5000) {
+        // Remove any existing toasts
+        $('.toast-notification').remove();
+        
+        const typeClasses = {
+            'success': 'alert-success',
+            'error': 'alert-danger', 
+            'warning': 'alert-warning',
+            'info': 'alert-info'
+        };
+        
+        const typeIcons = {
+            'success': 'fa-check-circle',
+            'error': 'fa-exclamation-circle',
+            'warning': 'fa-exclamation-triangle', 
+            'info': 'fa-info-circle'
+        };
+        
+        const alertClass = typeClasses[type] || 'alert-info';
+        const iconClass = typeIcons[type] || 'fa-info-circle';
+        
+        // Sanitize message
+        const safeMessage = $('<div>').text(message).html();
+        
+        const toast = $(`
+            <div class="toast-notification alert ${alertClass} alert-dismissible fade show position-fixed shadow-lg"
+                 style="top: 20px; right: 20px; z-index: 9999; min-width: 350px; max-width: 500px;">
+                <i class="fas ${iconClass} me-2"></i>${safeMessage}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `);
+        
+        $('body').append(toast);
+        
+        // Auto-remove after duration
+        setTimeout(function() {
+            toast.fadeOut(500, function() {
+                toast.remove();
+            });
+        }, duration);
+    }
+
+    // Export handlers
+    function handleExport(jobId, all = false) {
+        const btn = all ? $('#exportAllBtn') : $(`.export-btn[data-job-id="${jobId}"]`);
+        const exportKey = all ? 'all' : jobId;
+        
+        if (exportStates.get(exportKey)) {
+            showToast('warning', 'Export already in progress');
+            return;
+        }
+        
+        exportStates.set(exportKey, true);
+        const originalText = btn.html();
+        btn.html(`<i class="fas fa-spinner fa-spin"></i> Exporting...`).prop('disabled', true);
+        
+        try {
+            const exportUrl = all ? '/job-applications/export-all' : `/job-applications/export/${jobId}`;
+            window.location.href = exportUrl;
+            
+            setTimeout(() => {
+                btn.html(originalText).prop('disabled', false);
+                exportStates.delete(exportKey);
+                showToast('success', 'Export started!');
+            }, all ? 3000 : 2000);
+            
+        } catch (error) {
+            console.error('Export error:', error);
+            btn.html(originalText).prop('disabled', false);
+            exportStates.delete(exportKey);
+            showToast('error', 'Export failed. Please try again.');
+        }
+    }
+
+    $(document).on('click', '.export-btn', function(e) {
+        e.preventDefault();
+        handleExport($(this).data('job-id'));
+    });
+    
+    $('#exportAllBtn').on('click', function(e) {
+        e.preventDefault(); 
+        handleExport(null, true);
+    });
+});
     </script>
     
 @endsection

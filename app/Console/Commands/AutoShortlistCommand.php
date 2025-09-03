@@ -2,24 +2,35 @@
 
 namespace App\Console\Commands;
 
+use App\ShortlistingReportExport;
 use App\Mail\ApplicationNotShortlistedMail;
 use App\Models\JobRequisition;
+use App\Models\JobApplication;
 use App\Models\ShortlistingSetting;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use Illuminate\Support\Facades\Storage;
 
 class AutoShortlistCommand extends Command
 {
-    protected $signature = 'jobs:auto-shortlist {--threshold=} {--requisition-id=} {--force}';
+    protected $signature = 'jobs:auto-shortlist {--threshold=} {--requisition-id=} {--force} {--generate-report}';
     protected $description = 'Run auto-shortlisting for job requisitions, update statuses and notify non-shortlisted applicants';
+
+    protected $reportData = [];
 
     public function handle()
     {
         $requisitionId = $this->option('requisition-id');
         $force = $this->option('force');
+        $generateReport = $this->option('generate-report');
 
         $settings = ShortlistingSetting::first();
         if (!$settings) {
@@ -80,6 +91,9 @@ class AutoShortlistCommand extends Command
 
                 if ($this->processRequisition($requisition, $threshold, $settings, $force)) {
                     $successCount++;
+                    
+                    // Generate and email export for each processed requisition
+                    $this->generateAndEmailExport($requisition);
                 } else {
                     $failureCount++;
                 }
@@ -94,6 +108,12 @@ class AutoShortlistCommand extends Command
         }
 
         $this->info("🎉 Auto-shortlisting completed! Success: {$successCount}, Failures: {$failureCount}");
+
+        // Generate report if requested
+        if ($generateReport && !empty($this->reportData)) {
+            $this->generateShortlistingReport();
+        }
+
         return $failureCount > 0 ? Command::FAILURE : Command::SUCCESS;
     }
 
@@ -118,11 +138,29 @@ class AutoShortlistCommand extends Command
                 return true;
             }
 
-            $shortlisted = collect();
+            $underReview = collect();
             $rejected = collect();
             $jobSkills = $requisition->skills ? $requisition->skills->pluck('name')->toArray() : [];
             $totalJobSkills = count($jobSkills);
             $minExperience = (float) ($requisition->min_experience ?? 0);
+
+            // Initialize report data for this requisition
+            $this->reportData[$requisition->id] = [
+                'job_title' => $requisition->title ?? 'N/A',
+                'job_reference' => $requisition->job_reference ?? 'N/A',
+                'required_skills' => $jobSkills,
+                'min_experience' => $minExperience,
+                'required_education' => $requisition->required_education_level ?? 'N/A',
+                'required_areas_of_study' => $requisition->required_areas_of_study ?? [],
+                'threshold' => $threshold,
+                'settings' => [
+                    'skills_weight' => $settings->skills_weight,
+                    'experience_weight' => $settings->experience_weight,
+                    'education_weight' => $settings->education_weight,
+                    'qualification_bonus' => $settings->qualification_bonus ?? 0,
+                ],
+                'applications' => []
+            ];
 
             foreach ($applications as $application) {
                 $user = $application->user;
@@ -142,25 +180,27 @@ class AutoShortlistCommand extends Command
                     'total_score'         => $scores['total_score'],
                 ]);
 
-                // Determine new status
-                $potentialThreshold = $threshold - 10; // e.g., 10 points below main threshold
+                // Updated status logic: place all under review unless score is less than 50/60%
+                $rejectThreshold = min(50, $threshold * 0.6); // Use 50% or 60% of threshold, whichever is lower
 
-                if ($scores['total_score'] >= $threshold) {
-                    $newStatus = 'shortlisted';
-                } elseif ($scores['total_score'] >= $potentialThreshold) {
-                    $newStatus = 'review';
-                } else {
+                if ($scores['total_score'] < $rejectThreshold) {
                     $newStatus = 'rejected';
+                } else {
+                    $newStatus = 'Review'; // Changed from 'shortlisted' to 'review'
                 }
-                                $oldStatus = $application->status;
+
+                $oldStatus = $application->status;
                 
                 // Update application status
                 $application->status = $newStatus;
                 $application->saveQuietly();
 
+                // Collect detailed information for report
+                $this->collectReportData($requisition->id, $application, $user, $scores, $jobSkills, $minExperience, $requisition, $newStatus, $oldStatus);
+
                 // Collect for notifications and logging
-                if ($newStatus === 'shortlisted') {
-                    $shortlisted->push($application);
+                if ($newStatus === 'Review') {
+                    $underReview->push($application);
                 } else {
                     $rejected->push($application);
                 }
@@ -177,16 +217,434 @@ class AutoShortlistCommand extends Command
                 'auto_shortlisting_completed_at' => now()
             ]);
 
-            $this->info("✅ Job Requisition #{$requisition->id}: {$shortlisted->count()}/{$applications->count()} shortlisted, {$rejected->count()} rejected.");
+            $this->info("✅ Job Requisition #{$requisition->id}: {$underReview->count()}/{$applications->count()} under review, {$rejected->count()} rejected.");
 
             // Send notifications to rejected applicants (if mail class exists and is configured)
-         /*    if (class_exists(ApplicationNotShortlistedMail::class) && $rejected->isNotEmpty()) {
+            /* if (class_exists(ApplicationNotShortlistedMail::class) && $rejected->isNotEmpty()) {
                 $this->sendRejectionNotifications($rejected, $requisition);
             } */
 
             return true;
         });
     }
+
+    protected function generateAndEmailExport(JobRequisition $jobRequisition): void
+    {
+        try {
+            $this->info("📊 Generating export for Job Requisition #{$jobRequisition->id}...");
+    
+            $applications = JobApplication::where('job_requisition_id', $jobRequisition->id)
+                ->with([
+                    'user.profile',
+                    'user.education',
+                    'user.qualifications',
+                    'user.skills',
+                    'user.experiences',
+                    'score',
+                    'interviews'
+                ])
+                ->get()
+                ->sortByDesc(fn($a) => $a->score->total_score ?? 0);
+    
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+    
+            // Document properties
+            $spreadsheet->getProperties()
+                ->setCreator('HR Management System')
+                ->setTitle("Applications for {$jobRequisition->title}")
+                ->setDescription("Job applications export for {$jobRequisition->title}");
+    
+            // Job info header
+            $sheet->setCellValue('A1', 'Job Title:')->setCellValue('B1', $jobRequisition->title);
+            $sheet->setCellValue('A2', 'Department:')->setCellValue('B2', $jobRequisition->department->name ?? 'General');
+            $sheet->setCellValue('A3', 'Posted Date:')->setCellValue('B3', $jobRequisition->created_at->format('M j, Y'));
+            $sheet->setCellValue('A4', 'Total Applications:')->setCellValue('B4', $applications->count());
+            $sheet->setCellValue('A5', 'Export Date:')->setCellValue('B5', now()->format('M j, Y g:i A'));
+    
+            $sheet->getStyle('A1:A5')->getFont()->setBold(true);
+            $sheet->getStyle('A1:B5')->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('E3F2FD');
+    
+            // Table headers
+            $headerRow = 7;
+            $headers = [
+                'A' => 'Applicant Name',
+                'B' => 'Email',
+                'C' => 'Phone',
+                'D' => 'Status',
+                'E' => 'Application Date',
+                'F' => 'Application Score',
+                'G' => 'Experience (Years)',
+                'H' => 'Interview Score',
+                'I' => 'Education Entries',
+                'J' => 'Education Status',
+                'K' => 'Qualification Entries',
+                'L' => 'Skills'
+            ];
+    
+            foreach ($headers as $column => $header) {
+                $sheet->setCellValue($column . $headerRow, $header);
+            }
+    
+            $headerRange = 'A' . $headerRow . ':L' . $headerRow;
+            $sheet->getStyle($headerRange)->getFont()->setBold(true);
+            $sheet->getStyle($headerRange)->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('2196F3');
+            $sheet->getStyle($headerRange)->getFont()->getColor()->setRGB('FFFFFF');
+            $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    
+            // Populate applications
+            $row = $headerRow + 1;
+    
+            foreach ($applications as $application) {
+                $user = $application->user;
+                $profile = $user->profile ?? null;
+    
+                // Skills
+                $skills = $user->skills ?? collect();
+                $skillsString = $skills->isEmpty() ? 'N/A' : $skills->pluck('name')->implode(', ');
+    
+                // Application score
+                $appScore = $application->score ? $application->score->total_score : null;
+                $appScoreString = $appScore !== null ? number_format($appScore, 2) . '/100' : 'Not Scored';
+    
+                // Experience
+                $totalYears = $this->calculateTotalExperienceYears($user) ?: 'N/A';
+    
+                // Interview
+                $interviewScore = $application->interviews && method_exists($application->interviews, 'averageScore') && $application->interviews->averageScore() !== null
+                    ? $application->interviews->averageScore() . '/5'
+                    : 'Not Conducted';
+    
+                // Combine education entries with numbering and status
+                $educationList = $user->education->sortByDesc(fn($e) => $e->graduation_year ?? 0)
+                    ->map(function($e, $i) {
+                        $level = $e->education_level ?? $e->degree ?? 'N/A';
+                        $field = $e->field_of_study ?? 'N/A';
+                        $institution = $e->institution ?? 'N/A';
+                        return ($i + 1) . ". {$level} in {$field} ({$institution})";
+                    })->toArray();
+    
+                $educationStatusList = $user->education->sortByDesc(fn($e) => $e->graduation_year ?? 0)
+                    ->map(function($e, $i) {
+                        return ($i + 1) . ". " . ($e->status ?? 'N/A'); // Status column
+                    })->toArray();
+    
+                $educationString = $educationList ? implode("\n", $educationList) : 'N/A';
+                $educationStatusString = $educationStatusList ? implode("\n", $educationStatusList) : 'N/A';
+    
+                // Combine qualification entries with numbering
+                $qualificationList = $user->qualifications->sortByDesc(fn($q) => $q->obtained_year ?? 0)
+                    ->map(function($q, $i) {
+                        $title = $q->title ?? $q->name ?? 'N/A';
+                        $institution = $q->institution ?? 'N/A';
+                        return ($i + 1) . ". {$title} ({$institution})";
+                    })->toArray();
+    
+                $qualificationString = $qualificationList ? implode("\n", $qualificationList) : 'N/A';
+    
+                // Fill row
+                $sheet->setCellValue('A' . $row, $user->name ?? ($user->first_name . ' ' . $user->last_name) ?? 'N/A');
+                $sheet->setCellValue('B' . $row, $user->email ?? 'N/A');
+                $sheet->setCellValue('C' . $row, $profile->phone ?? 'N/A');
+                $sheet->setCellValue('D' . $row, ucfirst($application->status));
+                $sheet->setCellValue('E' . $row, $application->created_at->format('M j, Y'));
+                $sheet->setCellValue('F' . $row, $appScoreString);
+                $sheet->setCellValue('G' . $row, $totalYears);
+                $sheet->setCellValue('H' . $row, $interviewScore);
+                $sheet->setCellValue('I' . $row, $educationString);
+                $sheet->setCellValue('J' . $row, $educationStatusString);
+                $sheet->setCellValue('K' . $row, $qualificationString);
+                $sheet->setCellValue('L' . $row, $skillsString);
+    
+                // Wrap text for multi-line cells
+                $sheet->getStyle('I' . $row . ':K' . $row)->getAlignment()->setWrapText(true);
+    
+                // Conditional row coloring based on application score
+                $rowRange = 'A' . $row . ':L' . $row;
+                if ($appScore !== null) {
+                    if ($appScore < 50) {
+                        $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFCDD2'); // Light red
+                    } elseif ($appScore < 60) {
+                        $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFE0B2'); // Light orange
+                    } elseif ($appScore < 80) {
+                        $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFF9C4'); // Light yellow
+                    } else {
+                        $sheet->getStyle($rowRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('C8E6C9'); // Light green
+                    }
+                }
+    
+                $row++;
+            }
+    
+            // Auto-size columns
+            foreach (range('A', 'L') as $column) {
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+            }
+    
+            // Add borders
+            $tableRange = 'A' . $headerRow . ':L' . ($row - 1);
+            $sheet->getStyle($tableRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+    
+            // Sheet name and filename
+            $sheet->setTitle('Applications Export');
+            $filename = 'Applications_' . str_replace([' ', '/', '\\', ':', '*', '?', '"', '<', '>', '|'], '_', $jobRequisition->title) . '_' . now()->format('Y-m-d_H-i-s') . '.xlsx';
+            $filePath = storage_path("app/public/{$filename}");
+    
+            $writer = new Xlsx($spreadsheet);
+            $writer->save($filePath);
+    
+            $this->sendExportEmail($jobRequisition, $filePath, $filename);
+    
+            if (file_exists($filePath)) {
+                unlink($filePath);
+            }
+    
+            $this->info("📧 Export sent to tokelo.foso@cbs.co.ls for Job Requisition #{$jobRequisition->id}");
+    
+        } catch (\Exception $e) {
+            $this->error("❌ Failed to generate export for Job Requisition #{$jobRequisition->id}: " . $e->getMessage());
+            Log::error("Failed to generate export for Job Requisition #{$jobRequisition->id}: " . $e->getMessage());
+        }
+    }
+    
+    
+
+    protected function sendExportEmail(JobRequisition $jobRequisition, string $filePath, string $filename): void
+    {
+        try {
+            Mail::send('emails.application_export', [
+                'jobTitle' => $jobRequisition->title,
+                'jobReference' => $jobRequisition->job_reference,
+                'exportDate' => now()->format('M j, Y g:i A'),
+                'applicationCount' => $jobRequisition->applications()->count()
+            ], function ($message) use ($filePath, $filename, $jobRequisition) {
+                $message->to('tokelo.foso@cbs.co.ls') // send to your email for now
+                        ->subject('Application Export: ' . $jobRequisition->title)
+                        ->attach($filePath, [
+                            'as' => $filename,
+                            'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        ]);
+            });
+        } catch (\Exception $e) {
+            Log::error("Failed to send export email: " . $e->getMessage());
+            throw $e;
+        }
+        
+        
+    }
+
+    protected function collectReportData($requisitionId, $application, $user, $scores, $jobSkills, $minExperience, $requisition, $newStatus, $oldStatus): void
+    {
+        // Get user skills and experience details
+        $userSkills = $user->skills ? $user->skills->pluck('name')->toArray() : [];
+        $userEducation = $user->education ? $user->education->toArray() : [];
+        $userQualifications = $user->qualifications ? $user->qualifications->pluck('name')->toArray() : [];
+        
+        // Calculate experience details
+        $totalExperience = $this->calculateTotalExperienceYears($user);
+        $experienceDetails = [];
+        
+        if ($user->experiences) {
+            foreach ($user->experiences as $exp) {
+                $experienceDetails[] = [
+                    'company' => $exp->company_name ?? 'N/A',
+                    'position' => $exp->title ?? 'N/A',
+                    'start_date' => $exp->start_date ?? 'N/A',
+                    'end_date' => $exp->end_date ?? 'Current',
+                    'duration_years' => $exp->start_date ? 
+                        Carbon::parse($exp->start_date)->diffInYears($exp->end_date ? Carbon::parse($exp->end_date) : Carbon::now()) : 0
+                ];
+            }
+        }
+
+        // Get skill matching details
+        $skillMatchDetails = $this->debugSkillMatch($jobSkills, $userSkills);
+
+        // Get education matching details
+        $educationMatchDetails = $this->getEducationMatchDetails($user, $requisition);
+
+        $this->reportData[$requisitionId]['applications'][] = [
+            'application_id' => $application->id,
+            'applicant_name' => $user->first_name . ' ' . $user->last_name,
+            'applicant_email' => $user->email,
+            'application_date' => $application->created_at->format('Y-m-d'),
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus,
+            'final_score' => $scores['total_score'],
+            'skills_score' => $scores['skills_score'],
+            'experience_score' => $scores['experience_score'],
+            'education_score' => $scores['education_score'],
+            'qualification_bonus' => $scores['qualification_bonus'],
+            'user_skills' => $userSkills,
+            'user_qualifications' => $userQualifications,
+            'total_experience_years' => $totalExperience,
+            'experience_details' => $experienceDetails,
+            'education_details' => $userEducation,
+            'skill_match_details' => $skillMatchDetails,
+            'education_match_details' => $educationMatchDetails,
+            'meets_minimum_experience' => $totalExperience >= $minExperience,
+            'experience_gap' => max(0, $minExperience - $totalExperience),
+        ];
+    }
+
+    protected function getEducationMatchDetails($user, $requisition): array
+    {
+        $details = [
+            'required_level' => $requisition->required_education_level ?? 'N/A',
+            'required_areas' => $requisition->required_areas_of_study ?? [],
+            'user_education' => [],
+            'best_match' => null,
+            'meets_level_requirement' => false,
+            'meets_field_requirement' => false,
+        ];
+
+        if (!$user->education || $user->education->isEmpty()) {
+            return $details;
+        }
+
+        $hierarchy = $this->mapEducationLevelHierarchy();
+        $requiredRank = $hierarchy[trim($requisition->required_education_level ?? '')] ?? 0;
+
+        foreach ($user->education as $education) {
+            $educationLevel = $education->education_level ?? 'N/A';
+            $fieldOfStudy = $education->field_of_study ?? 'N/A';
+            $status = $education->status ?? 'N/A';
+            
+            $applicantRank = $hierarchy[trim($educationLevel)] ?? 0;
+            $meetsLevel = $applicantRank >= $requiredRank;
+            $meetsField = $this->checkFieldOfStudyMatch($fieldOfStudy, $details['required_areas']);
+
+            $eduDetail = [
+                'level' => $educationLevel,
+                'field' => $fieldOfStudy,
+                'status' => $status,
+                'institution' => $education->institution ?? 'N/A',
+                'graduation_year' => $education->end_date ?? 'N/A',
+                'meets_level_requirement' => $meetsLevel,
+                'meets_field_requirement' => $meetsField,
+                'level_rank' => $applicantRank,
+            ];
+
+            $details['user_education'][] = $eduDetail;
+
+            // Track best match
+            if ($meetsLevel || $meetsField) {
+                if (!$details['best_match'] || 
+                    ($meetsLevel && $meetsField) || 
+                    ($meetsLevel && !$details['best_match']['meets_level_requirement'])) {
+                    $details['best_match'] = $eduDetail;
+                }
+            }
+
+            // Update overall flags
+            if ($meetsLevel) $details['meets_level_requirement'] = true;
+            if ($meetsField) $details['meets_field_requirement'] = true;
+        }
+
+        return $details;
+    }
+
+    protected function generateShortlistingReport(): void
+    {
+        try {
+            $spreadsheet = new Spreadsheet();
+
+            foreach ($this->reportData as $requisitionId => $requisition) {
+                // Create new sheet per requisition
+                $sheet = $spreadsheet->createSheet();
+                $title = "Job #{$requisitionId} - {$requisition['job_title']}";
+                $title = preg_replace('/[:\\/*?\[\]]/', '', $title); // remove invalid characters
+                $title = substr($title, 0, 31); // max 31 characters
+                $sheet->setTitle($title);
+                $row = 1;
+
+                // Requisition summary info
+                $sheet->setCellValue("A{$row}", "Job Title");
+                $sheet->setCellValue("B{$row}", $requisition['job_title'] ?? 'N/A');
+                $row++;
+                $sheet->setCellValue("A{$row}", "Job Reference");
+                $sheet->setCellValue("B{$row}", $requisition['job_reference'] ?? 'N/A');
+                $row++;
+                $sheet->setCellValue("A{$row}", "Required Skills");
+                $sheet->setCellValue("B{$row}", implode(', ', $requisition['required_skills'] ?? []));
+                $row++;
+                $sheet->setCellValue("A{$row}", "Min Experience");
+                $sheet->setCellValue("B{$row}", $requisition['min_experience'] ?? 0);
+                $row++;
+                $sheet->setCellValue("A{$row}", "Threshold (%)");
+                $sheet->setCellValue("B{$row}", $requisition['threshold'] ?? 0);
+                $row += 2;
+
+                // Write application headers
+                $headers = [
+                    'Application ID', 'Applicant Name', 'Email', 'Application Date', 'Old Status', 'New Status',
+                    'Final Score', 'Skills Score', 'Experience Score', 'Education Score', 'Qualification Bonus',
+                    'Total Experience (Years)', 'Meets Min Experience',
+                    'All Skills', 'Matched Skills', 'Best Education Match'
+                ];
+                $sheet->fromArray($headers, null, "A{$row}");
+                $row++;
+
+                foreach ($requisition['applications'] as $app) {
+                    // Prepare education best match text
+                    $eduMatch = $app['education_match_details']['best_match'] ?? null;
+                    $eduMatchText = $eduMatch 
+                        ? "{$eduMatch['level']} in {$eduMatch['field']} (Level OK: " . ($eduMatch['meets_level_requirement'] ? 'Yes' : 'No') . ", Field OK: " . ($eduMatch['meets_field_requirement'] ? 'Yes' : 'No') . ")"
+                        : 'No match';
+
+                    $sheet->fromArray([
+                        $app['application_id'],
+                        $app['applicant_name'],
+                        $app['applicant_email'],
+                        $app['application_date'],
+                        $app['old_status'],
+                        $app['new_status'],
+                        $app['final_score'],
+                        $app['skills_score'],
+                        $app['experience_score'],
+                        $app['education_score'],
+                        $app['qualification_bonus'],
+                        $app['total_experience_years'],
+                        $app['meets_minimum_experience'] ? 'Yes' : 'No',
+                        implode(', ', $app['user_skills'] ?? []),
+                        implode(', ', $app['skill_match_details']['matching_keywords'] ?? []),
+                        $eduMatchText
+                    ], null, "A{$row}");
+                    $row++;
+                }
+
+                $row += 2; // spacing before next requisition
+            }
+
+            // Remove default empty sheet
+            $spreadsheet->removeSheetByIndex(0);
+
+            // Save file
+            $timestamp = now()->format('Y-m-d_H-i-s');
+            $fileName = "shortlisting_report_{$timestamp}.xlsx";
+            $filePath = storage_path("app/public/{$fileName}");
+
+            $writer = new Xlsx($spreadsheet);
+            $writer->save($filePath);
+
+            $fileUrl = Storage::disk('public')->url($fileName);
+
+            $this->info("📊 Shortlisting report generated successfully!");
+            $this->info("📁 File saved to: {$filePath}");
+            $this->info("🔗 Download URL: {$fileUrl}");
+
+        } catch (\Exception $e) {
+            $this->error("❌ Failed to generate report: " . $e->getMessage());
+            Log::error("Failed to generate shortlisting report: " . $e->getMessage());
+        }
+    }
+
+    // ... [Keep all the existing methods: sendRejectionNotifications, calculateApplicationScores, etc.]
+    // ... [I'm not repeating them here for brevity, but they remain unchanged]
 
     protected function sendRejectionNotifications($rejectedApplications, JobRequisition $requisition): void
     {
@@ -252,23 +710,14 @@ class AutoShortlistCommand extends Command
             'total_score' => round($totalScore, 2),
         ];
     }
+
     protected function calculateSkillsFraction(float $matchedSkillsCount, int $totalJobSkills): float
     {
         if ($totalJobSkills == 0) return 1.0; // No skills required = perfect match
         
+        // Direct proportional scoring: 100% match = 100% score, 50% match = 50% score, etc.
         $matchPercentage = $matchedSkillsCount / $totalJobSkills;
-        
-        // Option 2: Boosted scoring - more generous below 60%
-        if ($matchPercentage >= 0.6) {
-            return 1.0; // 60%+ skills = 100% score
-        } elseif ($matchPercentage >= 0.3) {
-            // 30-59% skills get boosted scoring
-            // Scale 30-60% to 50-100% (more generous boost)
-            return 0.5 + (($matchPercentage - 0.3) / 0.3) * 0.5;
-        } else {
-            // 0-30% skills = proportional (0-30% score)
-            return $matchPercentage;
-        }
+        return min($matchPercentage, 1.0); // Cap at 100% in case user has more skills than required
     }
 
     protected function countMatchedSkills(array $jobSkills, array $userSkills): float

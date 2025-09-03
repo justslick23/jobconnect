@@ -40,6 +40,7 @@
                                         @php
                                             $statusConfig = [
                                                 'submitted' => ['class' => 'warning', 'text' => 'Submitted'],
+                                                'review' => ['class' => 'warning', 'text' => 'Under Review'],
                                                 'shortlisted' => ['class' => 'info', 'text' => 'Shortlisted'],
                                                 'offer sent' => ['class' => 'primary', 'text' => 'Offer Sent'],
                                                 'hired' => ['class' => 'success', 'text' => 'Hired'],
@@ -299,16 +300,7 @@
                                     </button>
                                 @endif
                                 </form>
-                                @if($status === 'review')
-
-                                <form action="{{ route('applications.update-status', $application->id) }}" method="POST" class="mb-2">
-                                    @csrf @method('PATCH')
-                                    <input type="hidden" name="status" value="shortlisted">
-                                    <button class="btn btn-info btn-round w-100">
-                                        <i class="fas fa-star me-2"></i>Shortlist Applicant
-                                    </button>
-                                </form>
-                                @endif
+                              
 
                                 @if($hasInterview)
                                     <button class="btn btn-info btn-round w-100 mb-2" onclick="toggleSection('scoringSection')">

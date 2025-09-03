@@ -9,7 +9,6 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-
 Artisan::command('jobs:close-expired-and-shortlist', function () {
 
     $now = Carbon::now();
@@ -23,27 +22,22 @@ Artisan::command('jobs:close-expired-and-shortlist', function () {
     foreach ($jobsToClose as $job) {
         $job->job_status = 'closed';
         $job->save();
-    }
 
-    $this->info("Closed {$jobsToClose->count()} job requisitions.");
+        $this->info("Closed job requisition #{$job->id} ({$job->job_title}).");
 
-    // 2️⃣ Run auto-shortlisting ONLY if deadline was yesterday AND current time >= 08:00
-    $jobsForShortlisting = JobRequisition::where('job_status', 'closed')
-        ->whereNotNull('application_deadline')
-        ->whereDate('application_deadline', '=', $now->copy()->subDay()->toDateString())
-        ->whereTime('application_deadline', '<', '23:59:59') // make sure job deadline is yesterday
-        ->where('auto_shortlisting_completed', false)
-        ->get();
-
-    if ($now->hour >= 8) {
-        foreach ($jobsForShortlisting as $job) {
-            $this->call('jobs:auto-shortlist', [
-                '--requisition-id' => $job->id
-            ]);
-            $this->info("Auto-shortlisted job requisition #{$job->id}.");
+        // 2️⃣ Immediately run auto-shortlisting if not yet completed
+        if (! $job->auto_shortlisting_completed) {
+            try {
+                $this->call('jobs:auto-shortlist', [
+                    '--requisition-id' => $job->id
+                ]);
+                $this->info("Auto-shortlisted job requisition #{$job->id}.");
+            } catch (\Exception $e) {
+                $this->error("Failed to auto-shortlist job #{$job->id}: " . $e->getMessage());
+            }
         }
-    } else {
-        $this->info('It is before 08:00, auto-shortlisting will run later.');
     }
 
-})->describe('Close expired job requisitions and auto-shortlist next day at 08:00');
+    $this->info("Processed {$jobsToClose->count()} job requisitions.");
+
+})->describe('Close expired job requisitions and immediately run auto-shortlisting');

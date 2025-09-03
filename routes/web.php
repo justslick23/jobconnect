@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Auth\LinkedInController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ShortlistingSettingController;
+use App\Http\Controllers\ShortlistingReportController;
 
 Route::get('/', [HomeController::class, 'home'])->name('home');
 
@@ -142,3 +143,42 @@ Route::middleware(['auth'])->group(function () {
 // LinkedIn OAuth routes
 Route::get('/auth/linkedin', [LinkedInController::class, 'redirectToLinkedIn'])->name('auth.linkedin');
 Route::get('/auth/linkedin/callback', [LinkedInController::class, 'handleLinkedInCallback'])->name('auth.linkedin.callback');
+
+Route::prefix('shortlisting-reports')->name('shortlisting.')->group(function () {
+    
+    // Generate new report
+    Route::post('/generate', [ShortlistingReportController::class, 'generateReport'])
+         ->name('generate');
+    
+    // List all available reports
+    Route::get('/', [ShortlistingReportController::class, 'listReports'])
+         ->name('list');
+    
+    // Download specific report
+    Route::get('/download/{fileName}', [ShortlistingReportController::class, 'downloadReport'])
+         ->name('download')
+         ->where('fileName', 'shortlisting_report_[\d\-_]+\.xlsx');
+    
+    // Delete specific report
+    Route::delete('/{fileName}', [ShortlistingReportController::class, 'deleteReport'])
+         ->name('delete')
+         ->where('fileName', 'shortlisting_report_[\d\-_]+\.xlsx');
+});
+
+// Alternative: If you prefer API routes
+Route::prefix('api/shortlisting-reports')->name('api.shortlisting.')->group(function () {
+    
+    Route::post('/generate', [ShortlistingReportController::class, 'generateReport'])
+         ->name('generate');
+    
+    Route::get('/', [ShortlistingReportController::class, 'listReports'])
+         ->name('list');
+    
+    Route::get('/download/{fileName}', [ShortlistingReportController::class, 'downloadReport'])
+         ->name('download')
+         ->where('fileName', 'shortlisting_report_[\d\-_]+\.xlsx');
+    
+    Route::delete('/{fileName}', [ShortlistingReportController::class, 'deleteReport'])
+         ->name('delete')
+         ->where('fileName', 'shortlisting_report_[\d\-_]+\.xlsx');
+});

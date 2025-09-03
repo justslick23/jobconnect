@@ -13,7 +13,7 @@ use App\Models\ShortlistingSetting;
 use App\Mail\JobApplicationSubmitted;
 use Carbon\Carbon;
 use App\Models\ApplicationAttachment;
-
+use App\Mail\ApplicationNotShortlistedMail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -142,7 +142,6 @@ $applications = $query->get();
     }
     
     
-
     public function quickAction(Request $request, $id)
     {
         try {
@@ -159,9 +158,9 @@ $applications = $query->get();
                 ], 400);
             }
             
-            // Check permissions - Fix the method calls
+            // Check permissions
             $user = auth()->user();
-            if (!$user->hasRole('hr_admin') && !$user->hasRole('manager')) {
+            if (!$user->isHrAdmin()) {
                 return response()->json([
                     'success' => false, 
                     'message' => 'Unauthorized action'
@@ -170,47 +169,51 @@ $applications = $query->get();
             
             $oldStatus = $application->status;
             
-            // Map actions to statuses - Fix the status mapping
-            switch ($action) {
-                case 'shortlist':
-                    $application->status = 'shortlisted';
-                    break;
-                case 'reject':
-                    $application->status = 'rejected';
-                    break;
-                case 'offer_sent':
-                    $application->status = 'offer sent'; // Match your database enum
-                    break;
-                case 'hired':
-                    $application->status = 'hired';
-                    break;
+            // Map actions to statuses
+            $statusMap = [
+                'shortlist' => 'shortlisted',
+                'reject' => 'rejected',
+                'offer_sent' => 'offer sent',
+                'hired' => 'hired'
+            ];
+            
+            $newStatus = $statusMap[$action];
+            
+            $application->status = $newStatus;
+            $application->updated_at = now();
+            $application->save();
+
+            if ($newStatus === 'rejected') {
+                Mail::to($application->applicant->email) // assuming applicant relationship exists
+                    ->queue(new ApplicationNotShortlistedMail(
+                        $application->user->name,
+                        $application->jobRequisition->title // assuming jobRequisition relationship
+                    ));
             }
             
-            $application->updated_by = auth()->id();
-            $application->updated_at = now(); // Explicitly set updated_at
-            $application->save();
-            
             // Log the status change
-            Log::info('Application status updated', [
+            Log::info('Application status updated via quick action', [
                 'application_id' => $application->id,
                 'old_status' => $oldStatus,
                 'new_status' => $application->status,
-                'updated_by' => auth()->id()
+                'updated_by' => auth()->id(),
+                'action' => $action
             ]);
             
             return response()->json([
                 'success' => true, 
                 'message' => 'Application status updated successfully',
                 'new_status' => $application->status,
-                'status_label' => $this->getStatusLabel($application->status)
+                'status_label' => $this->getStatusLabel($application->status),
+                'application_id' => $application->id
             ]);
             
         } catch (\Exception $e) {
-            Log::error('Error updating application status', [
+            Log::error('Error in quick action', [
                 'application_id' => $id,
                 'action' => $request->input('action'),
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString() // Add stack trace for debugging
+                'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
@@ -221,54 +224,6 @@ $applications = $query->get();
     }
     
     /**
-     * Update application status (alternative method using PATCH)
-     */
-    public function updateStatus(Request $request, $id)
-    {
-        try {
-            $request->validate([
-                'status' => [
-                    'required',
-                    Rule::in(['submitted', 'shortlisted', 'rejected', 'offer sent', 'hired'])
-                ]
-            ]);
-    
-            $application = JobApplication::findOrFail($id);
-    
-            // Check permissions
-            if (!auth()->user()->isHrAdmin() && !auth()->user()->canManageApplications()) {
-                return redirect()->back()->with('error', 'You are not authorized to update this application.');
-            }
-    
-            $oldStatus = $application->status;
-            $application->status = $request->input('status');
-            $application->save();
-    
-            Log::info('Application status updated', [
-                'application_id' => $application->id,
-                'old_status' => $oldStatus,
-                'new_status' => $application->status,
-                'updated_by' => auth()->id()
-            ]);
-    
-            return redirect()->back()->with('success', 'Application status updated successfully.');
-    
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return redirect()->back()->withErrors($e->validator)->withInput();
-        } catch (\Exception $e) {
-            Log::error('Error updating application status', [
-                'application_id' => $id,
-                'status' => $request->input('status'),
-                'error' => $e->getMessage()
-            ]);
-    
-            return redirect()->back()->with('error', 'Something went wrong while updating the application.');
-        }
-    }
-    
-    
-    
-    /**
      * Bulk action for multiple applications
      */
     public function bulkAction(Request $request)
@@ -277,15 +232,15 @@ $applications = $query->get();
             $request->validate([
                 'action' => [
                     'required',
-                    Rule::in(['shortlist', 'reject', 'offer_sent', 'hired']) // Fix the validation rule
+                    Rule::in(['shortlist', 'reject', 'offer_sent', 'hired'])
                 ],
                 'applications' => 'required|array|min:1',
                 'applications.*' => 'exists:job_applications,id'
             ]);
             
-            // Check permissions - Fix the method calls
+            // Check permissions
             $user = auth()->user();
-            if (!$user->hasRole('hr_admin') && !$user->hasRole('manager')) {
+            if (!$user->isHrAdmin()) {
                 return response()->json([
                     'success' => false, 
                     'message' => 'Unauthorized action'
@@ -295,11 +250,11 @@ $applications = $query->get();
             $action = $request->input('action');
             $applicationIds = $request->input('applications');
             
-            // Map action to status - Fix the mapping
+            // Map action to status
             $statusMap = [
                 'shortlist' => 'shortlisted',
                 'reject' => 'rejected',
-                'offer_sent' => 'offer sent', // Match your database enum
+                'offer_sent' => 'offer sent',
                 'hired' => 'hired'
             ];
             
@@ -308,15 +263,28 @@ $applications = $query->get();
             DB::beginTransaction();
             
             try {
+                // Get applications before update for logging
+                $applications = JobApplication::whereIn('id', $applicationIds)->get();
+                
                 $updatedCount = JobApplication::whereIn('id', $applicationIds)
                     ->update([
                         'status' => $newStatus,
-                        'updated_by' => auth()->id(), // Fix: add updated_by field
                         'updated_at' => now()
                     ]);
+
+                    if ($newStatus === 'rejected') {
+                        foreach ($applications as $app) {
+                            Mail::to($app->applicant->email)
+                                ->queue(new ApplicationNotShortlistedMail(
+                                    $app->user->name,
+                                    $app->jobRequisition->title
+                                ));
+                        }
+                    }
                 
                 DB::commit();
                 
+                // Log bulk update
                 Log::info('Bulk application status update', [
                     'action' => $action,
                     'new_status' => $newStatus,
@@ -327,9 +295,11 @@ $applications = $query->get();
                 
                 return response()->json([
                     'success' => true,
-                    'message' => "{$updatedCount} application(s) updated successfully",
+                    'message' => "{$updatedCount} application(s) updated to '{$this->getStatusLabel($newStatus)}' successfully",
                     'updated_count' => $updatedCount,
-                    'new_status' => $newStatus
+                    'new_status' => $newStatus,
+                    'status_label' => $this->getStatusLabel($newStatus),
+                    'application_ids' => $applicationIds
                 ]);
                 
             } catch (\Exception $e) {
@@ -340,7 +310,8 @@ $applications = $query->get();
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed: ' . implode(', ', $e->validator->errors()->all())
+                'message' => 'Validation failed: ' . implode(', ', $e->validator->errors()->all()),
+                'errors' => $e->validator->errors()
             ], 422);
         } catch (\Exception $e) {
             Log::error('Error in bulk application status update', [
@@ -366,14 +337,33 @@ $applications = $query->get();
             'submitted' => 'Submitted',
             'shortlisted' => 'Shortlisted',
             'rejected' => 'Rejected',
-            'offer sent' => 'Offer Sent', // Match your database enum
-            'offer_sent' => 'Offer Sent', // Handle both cases
+            'offer sent' => 'Offer Sent',
+            'offer_sent' => 'Offer Sent',
             'hired' => 'Hired',
             'interview scheduled' => 'Interview Scheduled',
             'review' => 'Under Review'
         ];
         
         return $labels[$status] ?? ucfirst(str_replace('_', ' ', $status));
+    }
+    
+    /**
+     * Get status badge class for frontend
+     */
+    private function getStatusBadgeClass($status)
+    {
+        $classes = [
+            'submitted' => 'badge-info',
+            'shortlisted' => 'badge-warning',
+            'rejected' => 'badge-danger',
+            'offer sent' => 'badge-primary',
+            'offer_sent' => 'badge-primary',
+            'hired' => 'badge-success',
+            'interview scheduled' => 'badge-warning',
+            'review' => 'badge-secondary'
+        ];
+        
+        return $classes[$status] ?? 'badge-secondary';
     }
     
     /**
