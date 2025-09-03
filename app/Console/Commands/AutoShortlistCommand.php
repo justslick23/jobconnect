@@ -416,23 +416,32 @@ class AutoShortlistCommand extends Command
     protected function sendExportEmail(JobRequisition $jobRequisition, string $filePath, string $filename): void
     {
         try {
-            Mail::send('emails.application_export', [
-                'jobTitle' => $jobRequisition->title,
-                'jobReference' => $jobRequisition->job_reference,
-                'exportDate' => now()->format('M j, Y g:i A'),
-                'applicationCount' => $jobRequisition->applications()->count()
-            ], function ($message) use ($filePath, $filename, $jobRequisition) {
-                $message->to('tokelo.foso@cbs.co.ls') // send to your email for now
-                        ->subject('Application Export: ' . $jobRequisition->title)
-                        ->attach($filePath, [
-                            'as' => $filename,
-                            'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        ]);
-            });
+            // Get all users with role_id = 1 (HR/Admins)
+            $recipients = \App\Models\User::where('role_id', 1)->pluck('email')->toArray();
+        
+            if (!empty($recipients)) {
+                Mail::send('emails.application_export', [
+                    'jobTitle' => $jobRequisition->title,
+                    'jobReference' => $jobRequisition->job_reference,
+                    'exportDate' => now()->format('M j, Y g:i A'),
+                    'applicationCount' => $jobRequisition->applications()->count()
+                ], function ($message) use ($filePath, $filename, $jobRequisition, $recipients) {
+                    $message->to($recipients)
+                            ->subject('Application Export: ' . $jobRequisition->title)
+                            ->attach($filePath, [
+                                'as' => $filename,
+                                'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            ]);
+                });
+            } else {
+                Log::warning("No recipients found for role_id = 1. Export email not sent.");
+            }
+        
         } catch (\Exception $e) {
             Log::error("Failed to send export email: " . $e->getMessage());
             throw $e;
         }
+        
         
         
     }
