@@ -204,23 +204,26 @@
 
                 <!-- Skills -->
                 @if($jobRequisition->skills && $jobRequisition->skills->count() > 0)
-                <div class="card card-round">
-                    <div class="card-header">
-                        <div class="card-head-row">
-                            <div class="card-title">
-                                <i class="fas fa-cogs text-info me-2"></i>Required Skills
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-flex flex-wrap gap-2">
-                            @foreach($jobRequisition->skills->sortBy('pivot.created_at') as $skill)
-                            <span class="badge badge-primary badge-round">{{ $skill->name }}</span>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-                @endif
+<div class="card card-round">
+    <div class="card-header">
+        <div class="card-head-row">
+            <div class="card-title">
+                <i class="fas fa-cogs text-info me-2"></i>Required Skills
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- Left-aligned pills -->
+        <div class="skill-tags">
+            @foreach($jobRequisition->skills as $skill)
+                <span class="skill-tag">{{ $skill->name }}</span>
+            @endforeach
+        </div>
+        
+    </div>
+</div>
+@endif
+
 
                 <!-- More Information Section -->
                 <div class="card card-round">
@@ -347,9 +350,11 @@
                             <div class="row mb-3">
                                 <div class="col-12">
                                     <small class="text-muted fw-bold d-block mb-2">Areas of Expertise</small>
-                                    <div class="d-flex flex-wrap gap-1">
+                            
+                                    <!-- Left-aligned pills preserving form order -->
+                                    <div class="d-flex flex-wrap justify-content-start gap-1">
                                         @foreach($jobRequisition->required_areas_of_study as $area)
-                                            <span class="badge badge-secondary">
+                                            <span class="tag expertise">
                                                 {{ is_array($area) ? ($area['name'] ?? $area['title'] ?? 'Unknown') : $area }}
                                             </span>
                                         @endforeach
@@ -357,6 +362,7 @@
                                 </div>
                             </div>
                             @endif
+                            
 
                             <div class="row mb-3">
                                 <div class="col-5">
@@ -528,6 +534,64 @@
     font-weight: 600;
     color: #212529;
 }
+
+.skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.skill-tag {
+  background: #eef3ff;
+  color: #1572e8;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid rgba(21, 114, 232, 0.15);
+  transition: all 0.2s ease;
+}
+
+.skill-tag:hover {
+  background: #1572e8;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(21,114,232,0.2);
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag {
+  background: #eef3ff;
+  color: #1572e8;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid rgba(21, 114, 232, 0.15);
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.tag:hover {
+  background: #1572e8;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(21,114,232,0.2);
+}
+
+
+.tag.expertise {
+  background: #f8f9fa;
+  color: #555;
+  border-color: rgba(0,0,0,0.08);
+}
+
+
 
 .info-details .row {
     padding: 0.5rem 0;

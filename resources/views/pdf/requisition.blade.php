@@ -161,16 +161,16 @@
 
         /* Footer */
         .footer {
-            position: fixed;
-            bottom: 10mm;
-            left: 20mm;
-            right: 20mm;
-            text-align: center;
-            font-size: 9pt;
-            padding: 10px;
-            border-top: 2px solid #0066cc;
-            background-color: #ffffff;
-        }
+    text-align: center;
+    font-size: 9pt;
+    padding: 10px 0;
+    border-top: 2px solid #0066cc;
+    background-color: #ffffff;
+    color: #333;
+    margin-top: 30px;
+    position: relative; /* remove fixed positioning */
+}
+
 
         /* Deadline Box */
         .deadline-box {
@@ -292,8 +292,10 @@
         <div class="qr-section">
             <h3>Scan QR Code to Apply Online</h3>
             <img src="{{ $qrCodeUrl }}" alt="Application QR Code">
-            <div class="qr-caption">Or visit: {{ route('job-applications.create', $jobRequisition->id) }}</div>
-        </div>
+            <div class="qr-caption">
+                Or visit: {{ route('job-requisitions.show', $jobRequisition->slug_uuid) }}
+            </div>
+                    </div>
 
         <p>For further clarification, please e-mail <strong>recruitment@cbs.co.ls</strong></p>
         
