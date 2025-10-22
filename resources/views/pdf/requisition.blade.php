@@ -293,8 +293,10 @@
             <h3>Scan QR Code to Apply Online</h3>
             <img src="{{ $qrCodeUrl }}" alt="Application QR Code">
             <div class="qr-caption">
-                Or visit: {{ route('job-requisitions.show', $jobRequisition->slug_uuid) }}
-            </div>
+                <div class="qr-caption">
+                    Or visit: {{ route('job-applications.create', ['job_requisition' => $jobRequisition->id]) }}
+                </div>
+                            </div>
                     </div>
 
         <p>For further clarification, please e-mail <strong>recruitment@cbs.co.ls</strong></p>
