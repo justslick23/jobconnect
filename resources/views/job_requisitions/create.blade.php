@@ -114,7 +114,7 @@
                             <div class="form-group">
                                 <label for="requirements">Additional Notes or Requirements</label>
                                 <textarea name="requirements" 
-                                          id="requirements"
+                                          id="requirements_editor"
                                           class="form-control" 
                                           rows="4"
                                           placeholder="Any additional requirements or notes">{{ old('requirements') }}</textarea>
@@ -169,7 +169,7 @@
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label for="education_level">Required Education Level <span class="required-label">*</span></label>
-                                        <select name="education_level" id="education_level" class="form-select" required>
+                                        <select name="education_level" id="education_level" class="form-control" required>
                                             <option value="">Choose Education Level</option>
                                             @php
                                                 $educationLevels = [
@@ -183,6 +183,9 @@
                                                 </option>
                                             @endforeach
                                         </select>
+                                        <small class="form-text text-muted">
+                                            <i class="fas fa-info-circle"></i> Type to add a custom education level if not listed.
+                                        </small>
                                     </div>
                                 </div>
                             </div>
@@ -216,7 +219,7 @@
                             <div class="col-md-6">
                                 <!-- Area of Study -->
 <div class="form-group">
-    <label for="area_of_study">Area of Study <span class="required-label">*</span></label>
+    <label for="area_of_study">Area of Expertise <span class="required-label">*</span></label>
     <select name="area_of_study[]" id="area_of_study" class="form-control" multiple required>
         @php
             $areasOfStudy = [
@@ -293,6 +296,7 @@
 <!-- CKEditor -->
 <script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
 <script>
+    // Initialize TomSelect for Area of Study
     new TomSelect('#area_of_study', {
         plugins: ['remove_button'],
         placeholder: "Select or type an area of study...",
@@ -306,6 +310,20 @@
         duplicates: false,
         sortField: { field: "text", direction: "asc" },
         maxItems: 5 // optional
+    });
+
+    // Initialize TomSelect for Education Level
+    new TomSelect('#education_level', {
+        plugins: ['remove_button'],
+        placeholder: "Select or type an education level...",
+        create: function(input) {
+            return {
+                value: input,
+                text: input
+            };
+        },
+        persist: false,
+        maxItems: 1
     });
 </script>
 
@@ -328,9 +346,22 @@
         }
     });
 
-    // Initialize CKEditor
+    // Initialize CKEditor for Job Description
     ClassicEditor
         .create(document.querySelector('#editor'), {
+            toolbar: [
+                'heading', '|',
+                'bold', 'italic', 'link', '|',
+                'bulletedList', 'numberedList', '|',
+                'outdent', 'indent', '|',
+                'undo', 'redo'
+            ]
+        })
+        .catch(console.error);
+
+    // Initialize CKEditor for Requirements
+    ClassicEditor
+        .create(document.querySelector('#requirements_editor'), {
             toolbar: [
                 'heading', '|',
                 'bold', 'italic', 'link', '|',

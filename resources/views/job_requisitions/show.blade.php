@@ -214,13 +214,38 @@
                     </div>
                     <div class="card-body">
                         <div class="d-flex flex-wrap gap-2">
-                            @foreach($jobRequisition->skills as $skill)
+                            @foreach($jobRequisition->skills->sortBy('pivot.created_at') as $skill)
                             <span class="badge badge-primary badge-round">{{ $skill->name }}</span>
                             @endforeach
                         </div>
                     </div>
                 </div>
                 @endif
+
+                <!-- More Information Section -->
+                <div class="card card-round">
+                    <div class="card-header">
+                        <div class="card-head-row">
+                            <div class="card-title">
+                                <i class="fas fa-info-circle text-warning me-2"></i>More Information
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-details">
+                           <p>For more detailed information, please download the full job description below.</p>
+
+                            <div class="separator my-4"></div>
+
+                            <div class="text-center">
+                                <a href="{{ route('job-requisitions.download-pdf', $jobRequisition->id) }}" 
+                                   class="btn btn-primary btn-round">
+                                    <i class="fas fa-file-pdf me-2"></i>Download Full Job Description (PDF)
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
             </div>
 
@@ -304,7 +329,7 @@
                 <div class="card card-round">
                     <div class="card-header">
                         <div class="card-title">
-                            <i class="fas fa-info-circle me-2"></i>Job Information
+                            <i class="fas fa-info-circle me-2"></i>Quick Facts
                         </div>
                     </div>
                     <div class="card-body">
@@ -321,7 +346,7 @@
                             @if($jobRequisition->required_areas_of_study && !empty($jobRequisition->required_areas_of_study))
                             <div class="row mb-3">
                                 <div class="col-12">
-                                    <small class="text-muted fw-bold d-block mb-2">Areas of Study</small>
+                                    <small class="text-muted fw-bold d-block mb-2">Areas of Expertise</small>
                                     <div class="d-flex flex-wrap gap-1">
                                         @foreach($jobRequisition->required_areas_of_study as $area)
                                             <span class="badge badge-secondary">
@@ -463,6 +488,11 @@
     z-index: 1;
 }
 
+.separator {
+    height: 1px;
+    background: linear-gradient(to right, transparent, #ddd, transparent);
+}
+
 .content-text {
     line-height: 1.7;
 }
@@ -499,6 +529,14 @@
     color: #212529;
 }
 
+.info-details .row {
+    padding: 0.5rem 0;
+}
+
+.info-details .row:not(:last-child) {
+    border-bottom: 1px solid #f1f1f1;
+}
+
 /* Enhanced responsive design */
 @media (max-width: 768px) {
     .card-title {
@@ -516,6 +554,10 @@
     
     .avatar-xxl .fa-2x {
         font-size: 1.5rem;
+    }
+
+    .info-details .col-md-4 {
+        margin-bottom: 1rem;
     }
 }
 
@@ -537,6 +579,7 @@
 .btn-round:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
 }
 
 .card-round:hover {
@@ -548,6 +591,7 @@
 .badge-round {
     font-size: 0.75rem;
     padding: 0.375rem 0.75rem;
+    border-radius: 1rem;
 }
 
 /* Custom tooltip styling */
