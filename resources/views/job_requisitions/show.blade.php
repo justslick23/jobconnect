@@ -267,14 +267,24 @@
                             $hasApplied = auth()->check() && $jobRequisition->applications()->where('user_id', auth()->id())->exists();
                         @endphp
 
-                        @if($isClosed)
-                            <div class="avatar avatar-xxl mb-3">
-                                <span class="avatar-title rounded-circle bg-danger">
-                                    <i class="fas fa-times fa-2x text-white"></i>
-                                </span>
-                            </div>
-                            <h5 class="fw-bold text-danger mb-2">Applications Closed</h5>
-                            <p class="text-muted">Unfortunately, this job is no longer accepting applications.</p>
+@if($jobRequisition->approval_status === 'pending')
+<div class="avatar avatar-xxl mb-3">
+    <span class="avatar-title rounded-circle bg-warning">
+        <i class="fas fa-clock fa-2x text-white"></i>
+    </span>
+</div>
+<h5 class="fw-bold text-warning mb-2">Job Under Review</h5>
+<p class="text-muted">This job posting is currently under review and applications will open once approved.</p>
+
+@elseif($isClosed)
+<div class="avatar avatar-xxl mb-3">
+    <span class="avatar-title rounded-circle bg-danger">
+        <i class="fas fa-times fa-2x text-white"></i>
+    </span>
+</div>
+<h5 class="fw-bold text-danger mb-2">Applications Closed</h5>
+<p class="text-muted">Unfortunately, this job is no longer accepting applications.</p>
+
                             
                         @elseif($hasApplied)
                             <div class="avatar avatar-xxl mb-3">
