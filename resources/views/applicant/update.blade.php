@@ -110,7 +110,19 @@
                     'description' => 'Include educational qualifications that are relevant to the position you\'re applying for. Focus on degrees, courses, or certifications that demonstrate the knowledge and skills required for the role.',
                     'fields' => [
                         'degree' => ['type' => 'text', 'label' => 'Degree', 'required' => true, 'placeholder' => 'e.g., Bachelor of Science'],
-                        'education_level' => ['type' => 'select', 'label' => 'Education Level', 'required' => true, 'options' => ['High School', 'Certificate', 'Diploma', 'Associate Degree', 'Bachelor\'s Degree', 'Postgraduate Diploma', 'Master\'s Degree', 'Doctorate (PhD)', 'Other']],
+                        'education_level' => [
+                            'type' => 'select_with_custom', 
+                            'label' => 'Education Level', 
+                            'required' => true, 
+                            'options' => [
+                                'High School', 'Certificate', 'Diploma', 'Associate Degree', 
+                                'Bachelor\'s Degree', 'Postgraduate Diploma', 'Master\'s Degree', 
+                                'Doctorate (PhD)', 'Chartered Accountant', 'Certified Public Accountant', 
+                                'Project Management Professional', 'IT Certification', 
+                                'HR Professional Certification', 'Legal Qualification', 
+                                'Financial Analyst Certification', 'Professional Qualification'
+                            ]
+                        ],
                         'field_of_study' => [
                             'type' => 'select_with_custom', 
                             'label' => 'Field of Study', 
