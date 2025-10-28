@@ -255,8 +255,11 @@
                                             @php
                                                 $currentValue = isset($item->{$field}) ? $item->{$field} : '';
                                                 $isCustomValue = !empty($currentValue) && !in_array($currentValue, $fieldConfig['options']);
+                                                $uniqueFieldId = $section . '-' . $index . '-' . $field;
                                             @endphp
-                                            <select name="{{ $section }}[{{ $index }}][{{ $field }}]" class="form-select field-of-study-select {{ isset($fieldConfig['required']) && $fieldConfig['required'] && isset($config['required']) && $config['required'] ? 'required-for-final' : '' }}" onchange="toggleCustomFieldOfStudy(this, '{{ $section }}-{{ $index }}')">
+                                            <select name="{{ $section }}[{{ $index }}][{{ $field }}]" 
+                                                    class="form-select custom-select-field {{ isset($fieldConfig['required']) && $fieldConfig['required'] && isset($config['required']) && $config['required'] ? 'required-for-final' : '' }}" 
+                                                    onchange="toggleCustomField(this, '{{ $uniqueFieldId }}')">
                                                 <option value="">-- Select {{ str_replace(' (Optional)', '', $fieldConfig['label']) }} --</option>
                                                 @foreach($fieldConfig['options'] as $option)
                                                     <option value="{{ $option }}" {{ $currentValue === $option ? 'selected' : '' }}>{{ $option }}</option>
@@ -267,17 +270,17 @@
                                             <!-- Custom input field (hidden by default) -->
                                             <input type="text" 
                                                    name="{{ $section }}[{{ $index }}][custom_{{ $field }}]" 
-                                                   id="custom-field-{{ $section }}-{{ $index }}" 
+                                                   id="custom-field-{{ $uniqueFieldId }}" 
                                                    class="form-control mt-2 custom-field-input" 
-                                                   placeholder="Please specify your field of study..." 
+                                                   placeholder="Please specify..." 
                                                    value="{{ $isCustomValue ? $currentValue : '' }}"
                                                    style="display: {{ $isCustomValue ? 'block' : 'none' }};">
                                                    
                                             <small class="form-text text-muted">
-                                                <i class="fas fa-info-circle"></i> Don't see your field of study? Select "Other (Please specify)" to add a custom one.
+                                                <i class="fas fa-info-circle"></i> Don't see your {{ strtolower($fieldConfig['label']) }}? Select "Other (Please specify)" to add a custom one.
                                             </small>
-                                            
                                         @elseif($fieldConfig['type'] == 'select')
+                                            <!-- Regular select field (no custom option) -->
                                             <select name="{{ $section }}[{{ $index }}][{{ $field }}]" class="form-select {{ isset($fieldConfig['required']) && $fieldConfig['required'] && isset($config['required']) && $config['required'] ? 'required-for-final' : '' }}">
                                                 @if(isset($fieldConfig['options']) && count($fieldConfig['options']) > 0 && $fieldConfig['options'][0] !== '')
                                                     <option value="">-- Select {{ str_replace(' (Optional)', '', $fieldConfig['label']) }} --</option>
@@ -312,7 +315,7 @@
             </div>
             @endforeach
             
-            <script>
+            {{-- <script>
             function toggleCustomFieldOfStudy(selectElement, uniqueId) {
                 const customInput = document.getElementById('custom-field-' + uniqueId);
                 const isCustomSelected = selectElement.value === 'custom';
@@ -354,7 +357,7 @@
                     });
                 }
             });
-            </script>
+            </script> --}}
 
             <!-- Skills -->
             <div class="card">
@@ -642,444 +645,538 @@
     overflow-y: auto;
 }
 </style>
+<!-- COMPLETE UPDATED SCRIPT SECTION -->
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Skills functionality
-    // Cache DOM elements
-    const skillInput = document.getElementById('skill-input');
-    const skillsContainer = document.getElementById('selected-skills-display');
-    const hiddenInput = document.getElementById('skills-hidden');
-    const noSkillsText = document.getElementById('no-skills-text');
-    const suggestionsContainer = document.getElementById('skill-suggestions-container');
-    const liveSuggestions = document.getElementById('live-suggestions');
-
-    // Get all available skills from skill categories
-     // Get all available skills from PHP data
-    const allSkills = [
-        // Job-specific skills (highest priority)
-        @if(!empty($jobRequisitionSkills))
-            ...@json($jobRequisitionSkills),
-        @endif
-        // Technical skills
-        ...@json($skillCategories['Technical Skills'] ?? []),
-        // Soft skills  
-        ...@json($skillCategories['Soft Skills'] ?? []),
-        // Industry-specific skills
-        ...@json($skillCategories['Industry-Specific'] ?? [])
-    ].filter((skill, index, arr) => {
-        // Remove duplicates and empty values
-        return skill && skill.trim() && arr.indexOf(skill) === index;
-    });
-    let suggestionTimeout;
-
-    // Initialize
-    updateSkillStates();
-    setupEventListeners();
-
-    function setupEventListeners() {
-        // Live suggestions as user types
-        skillInput.addEventListener('input', function() {
-            clearTimeout(suggestionTimeout);
-            const query = this.value.trim();
-            
-            if (query.length >= 2) {
-                suggestionTimeout = setTimeout(() => showLiveSuggestions(query), 150);
-            } else {
-                hideSuggestions();
-            }
-        });
-
-        // Manual skill input
-        skillInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' || e.key === ',') {
-                e.preventDefault();
-                addSkillsFromInput();
-            }
-            if (e.key === 'Escape') {
-                hideSuggestions();
-            }
-        });
-
-        skillInput.addEventListener('blur', function() {
-            // Delay to allow clicking on suggestions
-            setTimeout(() => {
-                const input = this.value.trim();
-                if (input) addSkillsFromInput();
-                hideSuggestions();
-            }, 150);
-        });
-
-        skillInput.addEventListener('focus', function() {
-            const query = this.value.trim();
-            if (query.length >= 2) {
-                showLiveSuggestions(query);
-            }
-        });
-    }
-
-    function showLiveSuggestions(query) {
-        const matchedSkills = allSkills.filter(skill => 
-            skill.toLowerCase().includes(query.toLowerCase()) && 
-            !isSkillSelected(skill)
-        ).slice(0, 8); // Limit to 8 suggestions
-
-        if (matchedSkills.length > 0) {
-            liveSuggestions.innerHTML = matchedSkills.map(skill => 
-                `<button type="button" 
-                         class="btn btn-outline-primary btn-sm me-1 mb-1 live-suggestion" 
-                         data-skill="${skill}"
-                         onmousedown="event.preventDefault(); addSkillFromSuggestion('${skill}')">
-                    ${highlightMatch(skill, query)}
-                 </button>`
-            ).join('');
-            suggestionsContainer.style.display = 'block';
+    // ============================================
+    // CUSTOM FIELD HANDLING (Education Level & Field of Study)
+    // ============================================
+    
+    // Generic function to toggle custom fields
+    function toggleCustomField(selectElement, uniqueId) {
+        const customInput = document.getElementById('custom-field-' + uniqueId);
+        if (!customInput) return;
+        
+        const isCustomSelected = selectElement.value === 'custom';
+        
+        if (isCustomSelected) {
+            customInput.style.display = 'block';
+            customInput.required = true;
+            customInput.focus();
         } else {
-            hideSuggestions();
-        }
-    }
-
-    function highlightMatch(skill, query) {
-        const regex = new RegExp(`(${query})`, 'gi');
-        return skill.replace(regex, '<strong>$1</strong>');
-    }
-
-    function hideSuggestions() {
-        suggestionsContainer.style.display = 'none';
-        liveSuggestions.innerHTML = '';
-    }
-
-    function addSkillsFromInput() {
-        const input = skillInput.value.trim();
-        if (!input) return;
-
-        const skills = input.split(',').map(s => s.trim()).filter(s => s);
-        skills.forEach(skill => addSkill(skill));
-        skillInput.value = '';
-    }
-
-    function addSkill(skillName) {
-        skillName = skillName.trim();
-        if (!skillName || isSkillSelected(skillName)) return;
-
-        // Create skill badge
-        const badge = document.createElement('span');
-        badge.className = 'badge badge-primary me-1 mb-1 skill-badge';
-        badge.dataset.skill = skillName;
-        badge.innerHTML = `${skillName} <span class="ms-1" style="cursor:pointer" onclick="removeSkill(this)">×</span>`;
-        
-        skillsContainer.appendChild(badge);
-        updateHiddenInput();
-        updateSkillStates();
-    }
-
-    function isSkillSelected(skillName) {
-        return Array.from(skillsContainer.querySelectorAll('.skill-badge'))
-                   .some(badge => badge.dataset.skill.toLowerCase() === skillName.toLowerCase());
-    }
-
-    function updateHiddenInput() {
-        const skills = Array.from(skillsContainer.querySelectorAll('.skill-badge'))
-                          .map(badge => badge.dataset.skill);
-        hiddenInput.value = skills.join(',');
-    }
-
-    function updateSkillStates() {
-        // No need to update suggestion states since they're generated dynamically
-        toggleNoSkillsText();
-    }
-
-    function toggleNoSkillsText() {
-        const hasSkills = skillsContainer.querySelectorAll('.skill-badge').length > 0;
-        noSkillsText.style.display = hasSkills ? 'none' : 'block';
-    }
-
-    // Global functions for onclick handlers
-    window.addSkillFromSuggestion = function(skillName) {
-        addSkill(skillName);
-        skillInput.value = '';
-        hideSuggestions();
-        skillInput.focus();
-    };
-
-    window.removeSkill = function(element) {
-        element.parentElement.remove();
-        updateHiddenInput();
-        updateSkillStates();
-    };
-
-    // Initialize display
-    updateSkillStates();
-
-    // Form validation for final submission
-    const form = document.getElementById('profile-form');
-    const submitFinalBtn = document.getElementById('submit-final');
-
-    if (submitFinalBtn) {
-        submitFinalBtn.addEventListener('click', function(e) {
-            // Clear previous validation states
-            clearValidationStates();
-            
-            // Check required fields
-            const requiredFields = form.querySelectorAll('.required-for-final');
-            const missingFields = [];
-            
-            requiredFields.forEach(field => {
-                if (!field.value.trim()) {
-                    field.classList.add('validation-error');
-                    const label = field.closest('.form-group')?.querySelector('label')?.textContent?.trim();
-                    if (label) {
-                        missingFields.push(label.replace('*', '').trim());
-                    }
-                }
-            });
-
-            // Check if at least one education entry exists
-            const educationEntries = form.querySelectorAll('#education-container .entry-block');
-            const hasValidEducation = Array.from(educationEntries).some(entry => {
-                const degree = entry.querySelector('input[name*="[degree]"]')?.value?.trim();
-                const institution = entry.querySelector('input[name*="[institution]"]')?.value?.trim();
-                return degree && institution;
-            });
-
-            if (!hasValidEducation) {
-                missingFields.push('At least one education entry');
-            }
-
-            // Check resume upload requirement
-            const resumeInput = form.querySelector('input[name="resume"]');
-            const hasExistingResume = form.querySelector('.form-text.text-success') && 
-                                     form.querySelector('.form-text.text-success').textContent.includes('Current file:');
-            
-            if (!hasExistingResume && (!resumeInput.files || resumeInput.files.length === 0)) {
-                missingFields.push('CV/Resume upload');
-                resumeInput.classList.add('validation-error');
-            }
-
-            if (missingFields.length > 0) {
-                e.preventDefault();
-                showValidationSummary(missingFields);
-                return false;
-            }
-        });
-    }
-
-    function clearValidationStates() {
-        form.querySelectorAll('.validation-error').forEach(el => {
-            el.classList.remove('validation-error');
-        });
-        
-        const existingSummary = document.getElementById('validation-summary');
-        if (existingSummary) {
-            existingSummary.remove();
-        }
-    }
-
-    function showValidationSummary(missingFields) {
-        const summaryHtml = `
-            <div id="validation-summary" class="alert alert-danger mt-3">
-                <h5><i class="fas fa-exclamation-triangle me-2"></i>Required Fields Missing</h5>
-                <p class="mb-2">Please complete the following required fields before submitting:</p>
-                <div class="validation-summary">
-                    <ul class="mb-0">
-                        ${missingFields.map(field => `<li>${field}</li>`).join('')}
-                    </ul>
-                </div>
-                <hr>
-                <p class="mb-0">
-                    <small><strong>Tip:</strong> You can save your progress as a draft and complete these fields later.</small>
-                </p>
-            </div>
-        `;
-        
-        form.insertAdjacentHTML('beforebegin', summaryHtml);
-        
-        // Scroll to validation summary
-        document.getElementById('validation-summary').scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center' 
-        });
-    }
-
-    // File validation
-    const fileInputs = document.querySelectorAll('input[type="file"]');
-    const feedbackDiv = document.getElementById('file-validation-feedback');
-    
-    fileInputs.forEach(input => {
-        input.addEventListener('change', function() {
-            validateFiles(this);
-        });
-    });
-    
-    function validateFiles(input) {
-        const files = input.files;
-        const maxSize = parseInt(input.dataset.maxSize) || 5242880; // 5MB default
-        const feedback = [];
-        
-        if (!files || files.length === 0) return;
-        
-        Array.from(files).forEach((file, index) => {
-            const errors = [];
-            
-            // Check file size
-            if (file.size > maxSize) {
-                errors.push(`File "${file.name}" is too large (${formatFileSize(file.size)}). Maximum allowed: ${formatFileSize(maxSize)}`);
-            }
-            
-            // Check if file has a name
-            if (!file.name || file.name.trim() === '') {
-                errors.push('Invalid file: File name is empty');
-            }
-            
-            // Check file extension
-            const allowedExtensions = input.accept.split(',').map(ext => ext.trim().toLowerCase());
-            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
-            
-            if (allowedExtensions.length > 0 && !allowedExtensions.includes(fileExtension)) {
-                errors.push(`File "${file.name}" has unsupported format. Allowed: ${allowedExtensions.join(', ')}`);
-            }
-            
-            if (errors.length > 0) {
-                feedback.push(...errors);
-                // Clear the invalid file
-                input.value = '';
-            }
-        });
-        
-        // Display feedback
-        if (feedback.length > 0) {
-            feedbackDiv.innerHTML = '<div class="alert alert-danger"><ul class="mb-0">' + 
-                feedback.map(msg => `<li>${msg}</li>`).join('') + '</ul></div>';
-        } else {
-            feedbackDiv.innerHTML = '';
+            customInput.style.display = 'none';
+            customInput.required = false;
+            customInput.value = '';
         }
     }
     
-    function formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-});
-
-// Dynamic entry management
-function addEntry(section) {
-    const container = document.getElementById(section + '-container');
-    if (!container) return;
-    
-    const entries = container.querySelectorAll('.entry-block');
-    if (entries.length === 0) return;
-    
-    const newIndex = entries.length;
-    const template = entries[0].cloneNode(true);
-    
-    template.dataset.index = newIndex;
-    const titleElement = template.querySelector('h6');
-    if (titleElement) {
-        titleElement.textContent = titleElement.textContent.replace(/#\d+/, '#' + (newIndex + 1));
-    }
-    
-    // Update form field names and clear values
-    template.querySelectorAll('input, select, textarea').forEach(field => {
-        const name = field.getAttribute('name');
-        if (name) {
-            field.setAttribute('name', name.replace(/\[\d+\]/, '[' + newIndex + ']'));
-            if (field.type === 'checkbox' || field.type === 'radio') {
-                field.checked = false;
-            } else {
-                field.value = '';
-            }
-        }
-    });
-    
-    // Add remove button if not present
-    const headerDiv = template.querySelector('.d-flex');
-    if (headerDiv && !template.querySelector('.btn-danger')) {
-        const removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.className = 'btn btn-danger btn-sm';
-        removeBtn.innerHTML = '<i class="fa fa-trash"></i>';
-        removeBtn.onclick = function() { removeEntry(this); };
-        headerDiv.appendChild(removeBtn);
-    }
-    
-    container.appendChild(template);
-}
-
-function removeEntry(button) {
-    const entryBlock = button.closest('.entry-block');
-    if (entryBlock) {
-        entryBlock.remove();
-        
-        // Update entry numbers after removal
-        const container = entryBlock.closest('[id$="-container"]');
-        if (container) {
-            const entries = container.querySelectorAll('.entry-block');
-            entries.forEach((entry, index) => {
-                entry.dataset.index = index;
-                const titleElement = entry.querySelector('h6');
-                if (titleElement) {
-                    titleElement.textContent = titleElement.textContent.replace(/#\d+/, '#' + (index + 1));
-                }
-                
-                // Update field names
-                entry.querySelectorAll('input, select, textarea').forEach(field => {
-                    const name = field.getAttribute('name');
-                    if (name) {
-                        field.setAttribute('name', name.replace(/\[\d+\]/, '[' + index + ']'));
+    // Handle form submission to use custom values
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.querySelector('#profile-form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                // Handle ALL custom select fields (education_level, field_of_study, etc.)
+                const customSelects = document.querySelectorAll('.custom-select-field');
+                customSelects.forEach(function(select) {
+                    if (select.value === 'custom') {
+                        const onchangeAttr = select.getAttribute('onchange');
+                        if (onchangeAttr) {
+                            const match = onchangeAttr.match(/'([^']+)'/);
+                            if (match && match[1]) {
+                                const uniqueId = match[1];
+                                const customInput = document.getElementById('custom-field-' + uniqueId);
+                                if (customInput && customInput.value.trim()) {
+                                    // Create a hidden input with the custom value
+                                    const hiddenInput = document.createElement('input');
+                                    hiddenInput.type = 'hidden';
+                                    hiddenInput.name = select.name;
+                                    hiddenInput.value = customInput.value.trim();
+                                    form.appendChild(hiddenInput);
+                                    
+                                    // Disable the original select to avoid conflicts
+                                    select.disabled = true;
+                                }
+                            }
+                        }
                     }
                 });
             });
         }
-    }
-}
-
-// Function to toggle visibility of education fields based on status
-document.addEventListener('DOMContentLoaded', function() {
-    function toggleEducationFields(container) {
-        const statusSelect = container.querySelector('select[name*="[status]"]');
-        if (!statusSelect) return;
-
-        const endDateField = container.querySelector('input[name*="[end_date]"]')?.closest('.form-group');
-        const expectedGradField = container.querySelector('input[name*="[expected_graduation]"]')?.closest('.form-group');
-
-        function updateVisibility() {
-            if (!endDateField || !expectedGradField) return;
-
-            const status = statusSelect.value;
-
-            if (status === "Completed") {
-                endDateField.style.display = "block";
-                expectedGradField.style.display = "none";
-            } else if (status === "In Progress") {
-                endDateField.style.display = "none";
-                expectedGradField.style.display = "block";
+    
+        // ============================================
+        // SKILLS FUNCTIONALITY
+        // ============================================
+        
+        const skillInput = document.getElementById('skill-input');
+        const skillsContainer = document.getElementById('selected-skills-display');
+        const hiddenInput = document.getElementById('skills-hidden');
+        const noSkillsText = document.getElementById('no-skills-text');
+        const suggestionsContainer = document.getElementById('skill-suggestions-container');
+        const liveSuggestions = document.getElementById('live-suggestions');
+    
+        // Get all available skills from PHP data
+        const allSkills = [
+            @if(!empty($jobRequisitionSkills))
+                ...@json($jobRequisitionSkills),
+            @endif
+            ...@json($skillCategories['Technical Skills'] ?? []),
+            ...@json($skillCategories['Soft Skills'] ?? []),
+            ...@json($skillCategories['Industry-Specific'] ?? [])
+        ].filter((skill, index, arr) => {
+            return skill && skill.trim() && arr.indexOf(skill) === index;
+        });
+        
+        let suggestionTimeout;
+    
+        // Initialize
+        updateSkillStates();
+    
+        // Live suggestions as user types
+        if (skillInput) {
+            skillInput.addEventListener('input', function() {
+                clearTimeout(suggestionTimeout);
+                const query = this.value.trim();
+                
+                if (query.length >= 2) {
+                    suggestionTimeout = setTimeout(() => showLiveSuggestions(query), 150);
+                } else {
+                    hideSuggestions();
+                }
+            });
+    
+            skillInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    addSkillsFromInput();
+                }
+                if (e.key === 'Escape') {
+                    hideSuggestions();
+                }
+            });
+    
+            skillInput.addEventListener('blur', function() {
+                setTimeout(() => {
+                    const input = this.value.trim();
+                    if (input) addSkillsFromInput();
+                    hideSuggestions();
+                }, 150);
+            });
+    
+            skillInput.addEventListener('focus', function() {
+                const query = this.value.trim();
+                if (query.length >= 2) {
+                    showLiveSuggestions(query);
+                }
+            });
+        }
+    
+        function showLiveSuggestions(query) {
+            const matchedSkills = allSkills.filter(skill => 
+                skill.toLowerCase().includes(query.toLowerCase()) && 
+                !isSkillSelected(skill)
+            ).slice(0, 8);
+    
+            if (matchedSkills.length > 0) {
+                liveSuggestions.innerHTML = matchedSkills.map(skill => {
+                    const escapedSkill = skill.replace(/'/g, "\\'");
+                    return `<button type="button" 
+                             class="btn btn-outline-primary btn-sm me-1 mb-1 live-suggestion" 
+                             data-skill="${skill}"
+                             onmousedown="event.preventDefault(); addSkillFromSuggestion('${escapedSkill}')">
+                        ${highlightMatch(skill, query)}
+                     </button>`;
+                }).join('');
+                suggestionsContainer.style.display = 'block';
             } else {
-                endDateField.style.display = "none";
-                expectedGradField.style.display = "none";
+                hideSuggestions();
             }
         }
-
-        statusSelect.addEventListener('change', updateVisibility);
-        updateVisibility(); // run on load
+    
+        function highlightMatch(skill, query) {
+            const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            return skill.replace(regex, '<strong>$1</strong>');
+        }
+    
+        function hideSuggestions() {
+            suggestionsContainer.style.display = 'none';
+            liveSuggestions.innerHTML = '';
+        }
+    
+        function addSkillsFromInput() {
+            const input = skillInput.value.trim();
+            if (!input) return;
+    
+            const skills = input.split(',').map(s => s.trim()).filter(s => s);
+            skills.forEach(skill => addSkill(skill));
+            skillInput.value = '';
+        }
+    
+        function addSkill(skillName) {
+            skillName = skillName.trim();
+            if (!skillName || isSkillSelected(skillName)) return;
+    
+            const badge = document.createElement('span');
+            badge.className = 'badge badge-primary me-1 mb-1 skill-badge';
+            badge.dataset.skill = skillName;
+            badge.innerHTML = `${skillName} <span class="ms-1" style="cursor:pointer" onclick="removeSkill(this)">×</span>`;
+            
+            skillsContainer.appendChild(badge);
+            updateHiddenInput();
+            updateSkillStates();
+        }
+    
+        function isSkillSelected(skillName) {
+            return Array.from(skillsContainer.querySelectorAll('.skill-badge'))
+                       .some(badge => badge.dataset.skill.toLowerCase() === skillName.toLowerCase());
+        }
+    
+        function updateHiddenInput() {
+            const skills = Array.from(skillsContainer.querySelectorAll('.skill-badge'))
+                              .map(badge => badge.dataset.skill);
+            hiddenInput.value = skills.join(',');
+        }
+    
+        function updateSkillStates() {
+            toggleNoSkillsText();
+        }
+    
+        function toggleNoSkillsText() {
+            const hasSkills = skillsContainer.querySelectorAll('.skill-badge').length > 0;
+            noSkillsText.style.display = hasSkills ? 'none' : 'block';
+        }
+    
+        // Global functions for onclick handlers
+        window.addSkillFromSuggestion = function(skillName) {
+            addSkill(skillName);
+            skillInput.value = '';
+            hideSuggestions();
+            skillInput.focus();
+        };
+    
+        window.removeSkill = function(element) {
+            element.parentElement.remove();
+            updateHiddenInput();
+            updateSkillStates();
+        };
+    
+        // ============================================
+        // FORM VALIDATION FOR FINAL SUBMISSION
+        // ============================================
+        
+        const submitFinalBtn = document.getElementById('submit-final');
+    
+        if (submitFinalBtn) {
+            submitFinalBtn.addEventListener('click', function(e) {
+                clearValidationStates();
+                
+                const requiredFields = form.querySelectorAll('.required-for-final');
+                const missingFields = [];
+                
+                requiredFields.forEach(field => {
+                    if (!field.value.trim()) {
+                        field.classList.add('validation-error');
+                        const label = field.closest('.form-group')?.querySelector('label')?.textContent?.trim();
+                        if (label) {
+                            missingFields.push(label.replace('*', '').trim());
+                        }
+                    }
+                });
+    
+                // Check if at least one education entry exists
+                const educationEntries = form.querySelectorAll('#education-container .entry-block');
+                const hasValidEducation = Array.from(educationEntries).some(entry => {
+                    const degree = entry.querySelector('input[name*="[degree]"]')?.value?.trim();
+                    const institution = entry.querySelector('input[name*="[institution]"]')?.value?.trim();
+                    return degree && institution;
+                });
+    
+                if (!hasValidEducation) {
+                    missingFields.push('At least one education entry');
+                }
+    
+                // Check resume upload requirement
+                const resumeInput = form.querySelector('input[name="resume"]');
+                const hasExistingResume = form.querySelector('.form-text.text-success') && 
+                                         form.querySelector('.form-text.text-success').textContent.includes('Current file:');
+                
+                if (!hasExistingResume && (!resumeInput.files || resumeInput.files.length === 0)) {
+                    missingFields.push('CV/Resume upload');
+                    resumeInput.classList.add('validation-error');
+                }
+    
+                if (missingFields.length > 0) {
+                    e.preventDefault();
+                    showValidationSummary(missingFields);
+                    return false;
+                }
+            });
+        }
+    
+        function clearValidationStates() {
+            form.querySelectorAll('.validation-error').forEach(el => {
+                el.classList.remove('validation-error');
+            });
+            
+            const existingSummary = document.getElementById('validation-summary');
+            if (existingSummary) {
+                existingSummary.remove();
+            }
+        }
+    
+        function showValidationSummary(missingFields) {
+            const summaryHtml = `
+                <div id="validation-summary" class="alert alert-danger mt-3">
+                    <h5><i class="fas fa-exclamation-triangle me-2"></i>Required Fields Missing</h5>
+                    <p class="mb-2">Please complete the following required fields before submitting:</p>
+                    <div class="validation-summary">
+                        <ul class="mb-0">
+                            ${missingFields.map(field => `<li>${field}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <hr>
+                    <p class="mb-0">
+                        <small><strong>Tip:</strong> You can save your progress as a draft and complete these fields later.</small>
+                    </p>
+                </div>
+            `;
+            
+            form.insertAdjacentHTML('beforebegin', summaryHtml);
+            
+            document.getElementById('validation-summary').scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+        }
+    
+        // ============================================
+        // FILE VALIDATION
+        // ============================================
+        
+        const fileInputs = document.querySelectorAll('input[type="file"]');
+        const feedbackDiv = document.getElementById('file-validation-feedback');
+        
+        fileInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                validateFiles(this);
+            });
+        });
+        
+        function validateFiles(input) {
+            const files = input.files;
+            const maxSize = parseInt(input.dataset.maxSize) || 5242880;
+            const feedback = [];
+            
+            if (!files || files.length === 0) return;
+            
+            Array.from(files).forEach((file) => {
+                const errors = [];
+                
+                if (file.size > maxSize) {
+                    errors.push(`File "${file.name}" is too large (${formatFileSize(file.size)}). Maximum allowed: ${formatFileSize(maxSize)}`);
+                }
+                
+                if (!file.name || file.name.trim() === '') {
+                    errors.push('Invalid file: File name is empty');
+                }
+                
+                const allowedExtensions = input.accept.split(',').map(ext => ext.trim().toLowerCase());
+                const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+                
+                if (allowedExtensions.length > 0 && !allowedExtensions.includes(fileExtension)) {
+                    errors.push(`File "${file.name}" has unsupported format. Allowed: ${allowedExtensions.join(', ')}`);
+                }
+                
+                if (errors.length > 0) {
+                    feedback.push(...errors);
+                    input.value = '';
+                }
+            });
+            
+            if (feedback.length > 0) {
+                feedbackDiv.innerHTML = '<div class="alert alert-danger"><ul class="mb-0">' + 
+                    feedback.map(msg => `<li>${msg}</li>`).join('') + '</ul></div>';
+            } else {
+                feedbackDiv.innerHTML = '';
+            }
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+    
+        // ============================================
+        // EDUCATION FIELD VISIBILITY TOGGLING
+        // ============================================
+        
+        function toggleEducationFields(container) {
+            const statusSelect = container.querySelector('select[name*="[status]"]');
+            if (!statusSelect) return;
+    
+            const endDateField = container.querySelector('input[name*="[end_date]"]')?.closest('.form-group');
+            const expectedGradField = container.querySelector('input[name*="[expected_graduation]"]')?.closest('.form-group');
+    
+            function updateVisibility() {
+                if (!endDateField || !expectedGradField) return;
+    
+                const status = statusSelect.value;
+    
+                if (status === "Completed") {
+                    endDateField.style.display = "block";
+                    expectedGradField.style.display = "none";
+                } else if (status === "In Progress") {
+                    endDateField.style.display = "none";
+                    expectedGradField.style.display = "block";
+                } else {
+                    endDateField.style.display = "none";
+                    expectedGradField.style.display = "none";
+                }
+            }
+    
+            statusSelect.addEventListener('change', updateVisibility);
+            updateVisibility();
+        }
+    
+        // Apply to all existing education entries
+        document.querySelectorAll('#education-container .entry-block').forEach(toggleEducationFields);
+    
+        // Hook into addEntry function
+        const originalAddEntry = window.addEntry;
+        if (originalAddEntry) {
+            window.addEntry = function(section) {
+                originalAddEntry(section);
+    
+                if (section === 'education') {
+                    const container = document.querySelector('#education-container .entry-block:last-child');
+                    if (container) {
+                        toggleEducationFields(container);
+                    }
+                }
+            };
+        }
+    });
+    
+    // ============================================
+    // DYNAMIC ENTRY MANAGEMENT
+    // ============================================
+    
+    function addEntry(section) {
+        const container = document.getElementById(section + '-container');
+        if (!container) return;
+        
+        const entries = container.querySelectorAll('.entry-block');
+        if (entries.length === 0) return;
+        
+        const newIndex = entries.length;
+        const template = entries[0].cloneNode(true);
+        
+        template.dataset.index = newIndex;
+        const titleElement = template.querySelector('h6');
+        if (titleElement) {
+            titleElement.textContent = titleElement.textContent.replace(/#\d+/, '#' + (newIndex + 1));
+        }
+        
+        // Update form field names and clear values
+        template.querySelectorAll('input, select, textarea').forEach(field => {
+            const name = field.getAttribute('name');
+            if (name) {
+                const newName = name.replace(/\[\d+\]/, '[' + newIndex + ']');
+                field.setAttribute('name', newName);
+                
+                // Update onchange attribute for custom select fields
+                if (field.classList.contains('custom-select-field')) {
+                    const onchangeAttr = field.getAttribute('onchange');
+                    if (onchangeAttr) {
+                        const newOnchange = onchangeAttr.replace(/'-\d+-/, "'-" + newIndex + "-");
+                        field.setAttribute('onchange', newOnchange);
+                    }
+                }
+                
+                // Update custom input IDs
+                if (field.classList.contains('custom-field-input')) {
+                    const oldId = field.getAttribute('id');
+                    if (oldId) {
+                        const newId = oldId.replace(/-\d+-/, '-' + newIndex + '-');
+                        field.setAttribute('id', newId);
+                    }
+                }
+                
+                if (field.type === 'checkbox' || field.type === 'radio') {
+                    field.checked = false;
+                } else {
+                    field.value = '';
+                }
+                
+                // Hide custom input fields by default
+                if (field.classList.contains('custom-field-input')) {
+                    field.style.display = 'none';
+                }
+            }
+        });
+        
+        // Add remove button if not present
+        const headerDiv = template.querySelector('.d-flex');
+        if (headerDiv && !template.querySelector('.btn-danger')) {
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'btn btn-danger btn-sm';
+            removeBtn.innerHTML = '<i class="fa fa-trash"></i>';
+            removeBtn.onclick = function() { removeEntry(this); };
+            headerDiv.appendChild(removeBtn);
+        }
+        
+        container.appendChild(template);
     }
-
-    // Apply to all existing education entries
-    document.querySelectorAll('#education-container .entry-block').forEach(toggleEducationFields);
-
-    // Hook into your existing addEntry function
-    const originalAddEntry = window.addEntry;
-    window.addEntry = function(section) {
-        originalAddEntry(section);
-
-        if (section === 'education') {
-            const container = document.querySelector('#education-container .entry-block:last-child');
-            toggleEducationFields(container);
+    
+    function removeEntry(button) {
+        const entryBlock = button.closest('.entry-block');
+        if (entryBlock) {
+            entryBlock.remove();
+            
+            const container = entryBlock.closest('[id$="-container"]');
+            if (container) {
+                const entries = container.querySelectorAll('.entry-block');
+                entries.forEach((entry, index) => {
+                    entry.dataset.index = index;
+                    const titleElement = entry.querySelector('h6');
+                    if (titleElement) {
+                        titleElement.textContent = titleElement.textContent.replace(/#\d+/, '#' + (index + 1));
+                    }
+                    
+                    entry.querySelectorAll('input, select, textarea').forEach(field => {
+                        const name = field.getAttribute('name');
+                        if (name) {
+                            field.setAttribute('name', name.replace(/\[\d+\]/, '[' + index + ']'));
+                        }
+                        
+                        // Update onchange for custom fields
+                        if (field.classList.contains('custom-select-field')) {
+                            const onchangeAttr = field.getAttribute('onchange');
+                            if (onchangeAttr) {
+                                const sectionName = onchangeAttr.match(/'([^-]+)-/)[1];
+                                const fieldName = onchangeAttr.match(/-([^']+)'/)[1];
+                                field.setAttribute('onchange', `toggleCustomField(this, '${sectionName}-${index}-${fieldName}')`);
+                            }
+                        }
+                        
+                        // Update IDs for custom input fields
+                        if (field.classList.contains('custom-field-input')) {
+                            const oldId = field.getAttribute('id');
+                            if (oldId) {
+                                const parts = oldId.split('-');
+                                if (parts.length >= 4) {
+                                    parts[2] = index;
+                                    field.setAttribute('id', parts.join('-'));
+                                }
+                            }
+                        }
+                    });
+                });
+            }
         }
     }
-});
-</script>
-
+    </script>
 @endsection

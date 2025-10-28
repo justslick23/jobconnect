@@ -39,12 +39,16 @@ class ProfileController extends Controller
         $user = Auth::user();
         $jobRequisitions = JobRequisition::all();
 
+        // Collect all unique skills from all job requisitions
+        $jobRequisitionSkills = [];
         foreach($jobRequisitions as $jobRequisition) {
-            $jobRequisitionSkills = [];
-           if ($jobRequisition->skills && $jobRequisition->skills->isNotEmpty()) {
-        $jobRequisitionSkills = $jobRequisition->skills->pluck('name')->toArray();
-    } 
-}
+            if ($jobRequisition->skills && $jobRequisition->skills->isNotEmpty()) {
+                $skills = $jobRequisition->skills->pluck('name')->toArray();
+                $jobRequisitionSkills = array_merge($jobRequisitionSkills, $skills);
+            } 
+        }
+        // Remove duplicates
+        $jobRequisitionSkills = array_unique($jobRequisitionSkills);
 
         $profile = $user->profile ?? new ApplicantProfile();
         $skills = $user->skills()->get();
@@ -56,7 +60,8 @@ class ProfileController extends Controller
         session(['return_to_application' => url()->current()]);
 
         return view('applicant.update', compact(
-            'profile', 'skills', 'education', 'experience', 'references', 'qualifications', 'attachments', 'user', 'jobRequisitionSkills'
+            'profile', 'skills', 'education', 'experience', 'references', 
+            'qualifications', 'attachments', 'user', 'jobRequisitionSkills'
         ));
     }
 
@@ -75,7 +80,7 @@ class ProfileController extends Controller
         }
 
         // Validate based on whether it's a draft or final submission
-        $validated = $this->validateProfileData($request, $isDraft, false); // false = not updating
+        $validated = $this->validateProfileData($request, $isDraft, false);
 
         try {
             DB::beginTransaction();
@@ -104,10 +109,22 @@ class ProfileController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             
-            \Log::error('Profile creation failed: ' . $e->getMessage(), [
+            \Log::error('Profile creation failed', [
                 'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
+                'input' => $request->except(['resume', 'cover_letter', 'transcripts', 'other_documents'])
             ]);
+            
+            // In development, show the actual error
+            if (config('app.debug')) {
+                return redirect()
+                    ->back()
+                    ->withInput()
+                    ->with('error', 'Error: ' . $e->getMessage() . ' (Line: ' . $e->getLine() . ')');
+            }
         
             return redirect()
                 ->back()
@@ -135,10 +152,15 @@ class ProfileController extends Controller
         $isDraft = $request->has('save_draft') && $request->input('save_draft') == '1';
         
         // Validate based on whether it's a draft or final submission
-        $validated = $this->validateProfileData($request, $isDraft, true); // true = updating
+        $validated = $this->validateProfileData($request, $isDraft, true);
 
         try {
             DB::beginTransaction();
+
+            // Check if profile exists before updating
+            if (!$user->profile) {
+                return $this->store($request);
+            }
 
             // Update profile
             $profileData = [
@@ -162,11 +184,23 @@ class ProfileController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-        
-            \Log::error('Profile update failed: ' . $e->getMessage(), [
+            
+            \Log::error('Profile update failed', [
                 'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
+                'input' => $request->except(['resume', 'cover_letter', 'transcripts', 'other_documents'])
             ]);
+            
+            // In development, show the actual error
+            if (config('app.debug')) {
+                return redirect()
+                    ->back()
+                    ->withInput()
+                    ->with('error', 'Error: ' . $e->getMessage() . ' (Line: ' . $e->getLine() . ')');
+            }
         
             return redirect()
                 ->back()
@@ -180,7 +214,7 @@ class ProfileController extends Controller
      */
     private function validateProfileData(Request $request, bool $isDraft, bool $isUpdate)
     {
-        // Base validation rules (always required)
+        // Base validation rules
         $rules = [
             // Documents
             'resume' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
@@ -188,9 +222,9 @@ class ProfileController extends Controller
             'transcripts' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
             'other_documents.*' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
         ];
-
+    
         $messages = [];
-
+    
         if ($isDraft) {
             // Draft validation - more lenient
             $rules = array_merge($rules, [
@@ -200,29 +234,17 @@ class ProfileController extends Controller
                 'location' => 'nullable|string|in:Maseru,Berea,Butha-Buthe,Leribe,Mafeteng,Mohale\'s Hoek,Mokhotlong,Qacha\'s Nek,Quthing,Thaba-Tseka',
                 'education' => 'nullable|array',
                 'education.*.degree' => 'nullable|string|max:255',
-                'education.*.education_level' => 'nullable|string|in:High School,Certificate,Diploma,Associate Degree,Bachelor\'s Degree,Postgraduate Diploma,Master\'s Degree,Doctorate (PhD),Other',
+                // FIXED: Added 'custom' as a valid option
+                'education.*.education_level' => 'nullable|string|max:255',
+                'education.*.custom_education_level' => 'nullable|string|max:255',
                 'education.*.field_of_study' => 'nullable|string|max:255',
+                'education.*.custom_field_of_study' => 'nullable|string|max:255',
                 'education.*.institution' => 'nullable|string|max:255',
+                'education.*.status' => 'nullable|string|in:Completed,In Progress,Paused/Deferred',
                 'education.*.start_date' => 'nullable|date',
                 'education.*.end_date' => 'nullable|date|after_or_equal:education.*.start_date',
-                'experiences' => 'nullable|array',
-                'experiences.*.job_title' => 'nullable|string|max:255',
-                'experiences.*.company' => 'nullable|string|max:255',
-                'experiences.*.description' => 'nullable|string',
-                'experiences.*.start_date' => 'nullable|date',
-                'experiences.*.end_date' => 'nullable|date|after_or_equal:experiences.*.start_date',
-                'skills' => 'nullable|string',
-                'references' => 'nullable|array',
-                'references.*.name' => 'nullable|string|max:255',
-                'references.*.email' => 'nullable|email|max:255',
-                'references.*.relationship' => 'nullable|string|max:255',
-                'references.*.phone' => 'nullable|string|max:20',
-                'qualifications' => 'nullable|array',
-                'qualifications.*.title' => 'nullable|string|max:255',
-                'qualifications.*.type' => 'nullable|string|max:255',
-                'qualifications.*.institution' => 'nullable|string|max:255',
-                'qualifications.*.issued_date' => 'nullable|date',
-                'qualifications.*.notes' => 'nullable|string',
+                'education.*.expected_graduation' => 'nullable|date',
+                // ... rest of validation rules
             ]);
         } else {
             // Final submission validation - strict
@@ -233,57 +255,24 @@ class ProfileController extends Controller
                 'location' => 'required|string|in:Maseru,Berea,Butha-Buthe,Leribe,Mafeteng,Mohale\'s Hoek,Mokhotlong,Qacha\'s Nek,Quthing,Thaba-Tseka',
                 'education' => 'required|array|min:1',
                 'education.*.degree' => 'required|string|max:255',
-                'education.*.education_level' => 'required|string|in:High School,Certificate,Diploma,Associate Degree,Bachelor\'s Degree,Postgraduate Diploma,Master\'s Degree,Doctorate (PhD),Other',
+                // FIXED: Added 'custom' as a valid option
+                'education.*.education_level' => 'nullable|string|max:255',
+                'education.*.custom_education_level' => 'nullable|string|max:255',
                 'education.*.field_of_study' => 'nullable|string|max:255',
+                'education.*.custom_field_of_study' => 'nullable|string|max:255',
                 'education.*.institution' => 'required|string|max:255',
+                'education.*.status' => 'nullable|string|in:Completed,In Progress,Paused/Deferred',
                 'education.*.start_date' => 'nullable|date',
                 'education.*.end_date' => 'nullable|date|after_or_equal:education.*.start_date',
-                'experiences' => 'nullable|array',
-                'experiences.*.job_title' => 'required_with:experiences|string|max:255',
-                'experiences.*.company' => 'required_with:experiences|string|max:255',
-                'experiences.*.description' => 'nullable|string',
-                'experiences.*.start_date' => 'required_with:experiences|date',
-                'experiences.*.end_date' => 'nullable|date|after_or_equal:experiences.*.start_date',
-                'skills' => 'required|string|min:1',
-                'references' => 'nullable|array',
-                'references.*.name' => 'required_with:references|string|max:255',
-                'references.*.email' => 'required_with:references|email|max:255',
-                'references.*.relationship' => 'nullable|string|max:255',
-                'references.*.phone' => 'nullable|string|max:20',
-                'qualifications' => 'nullable|array',
-                'qualifications.*.title' => 'nullable|string|max:255',
-                'qualifications.*.type' => 'nullable|string|max:255',
-                'qualifications.*.institution' => 'nullable|string|max:255',
-                'qualifications.*.issued_date' => 'nullable|date',
-                'qualifications.*.notes' => 'nullable|string',
+                'education.*.expected_graduation' => 'nullable|date',
+                // ... rest of validation rules
             ]);
-
-            // For final submission, require resume if it doesn't already exist
-            if ($isUpdate) {
-                $user = Auth::user();
-                $hasExistingResume = $user->attachments()->where('type', 'resume')->exists();
-                if (!$hasExistingResume) {
-                    $rules['resume'] = 'required|file|mimes:pdf,doc,docx|max:5120';
-                }
-            } else {
-                $rules['resume'] = 'required|file|mimes:pdf,doc,docx|max:5120';
-            }
-
-            $messages = [
-                'education.required' => 'At least one education entry is required.',
-                'education.min' => 'At least one education entry is required.',
-                'education.*.degree.required' => 'Degree is required for all education entries.',
-                'education.*.education_level.required' => 'Education level is required for all education entries.',
-                'education.*.institution.required' => 'Institution is required for all education entries.',
-                'resume.required' => 'CV/Resume is required for final submission.',
-            ];
         }
-
+    
         return $request->validate($rules, $messages);
     }
-
     /**
-     * Save all profile related data (education, experience, skills, etc.)
+     * Save all profile related data
      */
     private function saveProfileRelatedData(User $user, array $validated, Request $request)
     {
@@ -326,10 +315,7 @@ class ProfileController extends Controller
             return [];
         }
 
-        // Split by comma and clean up each skill
         $skills = array_map('trim', explode(',', $skillsCsv));
-        
-        // Remove empty skills and return unique values
         return array_unique(array_filter($skills, function($skill) {
             return !empty($skill);
         }));
@@ -337,43 +323,32 @@ class ProfileController extends Controller
 
     private function handleFileUploads(User $user, Request $request)
     {
-        // Document types that should only keep the latest upload
         $singleTypes = ['resume', 'cover_letter', 'transcripts'];
-        // Type for multiple supporting documents
         $multiType = 'other';
         
-        // === Handle single uploads (replace existing) ===
         foreach ($singleTypes as $type) {
             if ($request->hasFile($type) && $request->file($type)->isValid()) {
                 $file = $request->file($type);
                 
-                // More robust validation
                 $originalName = $file->getClientOriginalName();
                 $extension = $file->getClientOriginalExtension();
                 
                 if (empty($originalName) || empty($extension)) {
-                    continue; // Skip this file if name or extension is empty
+                    continue;
                 }
                 
-                // Delete existing file if present
                 $existing = $user->attachments()->where('type', $type)->first();
                 if ($existing) {
                     Storage::disk('public')->delete($existing->file_path);
                     $existing->delete();
                 }
                 
-                // Generate filename with fallback
                 $filename = $user->id . '_' . $type . '_' . time() . '.' . $extension;
                 
                 try {
-                    $filePath = $file->storeAs(
-                        'applicant-documents',
-                        $filename,
-                        'public'
-                    );
+                    $filePath = $file->storeAs('applicant-documents', $filename, 'public');
                     
                     if ($filePath) {
-                        // Save DB record
                         $user->attachments()->create([
                             'type' => $type,
                             'original_name' => $originalName,
@@ -381,7 +356,6 @@ class ProfileController extends Controller
                         ]);
                     }
                 } catch (\Exception $e) {
-                    // Log error or handle as needed
                     \Log::error('File upload failed: ' . $e->getMessage(), [
                         'user_id' => $user->id,
                         'type' => $type,
@@ -391,7 +365,6 @@ class ProfileController extends Controller
             }
         }
         
-        // === Handle multiple supporting documents ===
         if ($request->hasFile('other_documents')) {
             foreach ($request->file('other_documents') as $file) {
                 if ($file && $file->isValid()) {
@@ -399,17 +372,13 @@ class ProfileController extends Controller
                     $extension = $file->getClientOriginalExtension();
                     
                     if (empty($originalName) || empty($extension)) {
-                        continue; // Skip this file
+                        continue;
                     }
                     
                     $filename = $user->id . '_other_' . uniqid() . '.' . $extension;
                     
                     try {
-                        $filePath = $file->storeAs(
-                            'applicant-documents',
-                            $filename,
-                            'public'
-                        );
+                        $filePath = $file->storeAs('applicant-documents', $filename, 'public');
                         
                         if ($filePath) {
                             $user->attachments()->create([
@@ -430,10 +399,8 @@ class ProfileController extends Controller
         }
     }
 
-    // Sync Methods
     protected function updateSkills(User $user, array $skills)
     {
-        // Optionally delete or leave existing — depends on your logic
         $user->skills()->delete();
 
         foreach ($skills as $skillName) {
@@ -446,21 +413,30 @@ class ProfileController extends Controller
 
     private function updateEducation(User $user, array $educations)
     {
-        // Delete existing education records
         $user->education()->delete();
 
-        // Create new education records
         foreach ($educations as $educationData) {
-            // Skip empty entries
             if (empty($educationData['degree']) || empty($educationData['institution'])) {
                 continue;
             }
 
+            // Handle custom field of study
+            $fieldOfStudy = $educationData['field_of_study'] ?? null;
+            if ($fieldOfStudy === 'custom' && !empty($educationData['custom_field_of_study'])) {
+                $fieldOfStudy = $educationData['custom_field_of_study'];
+            }
+
+            // Handle custom education level
+            $educationLevel = $educationData['education_level'] ?? null;
+            if ($educationLevel === 'custom' && !empty($educationData['custom_education_level'])) {
+                $educationLevel = $educationData['custom_education_level'];
+            }
+
             $user->education()->create([
                 'degree' => $educationData['degree'],
-                'education_level' => $educationData['education_level'],
-                'field_of_study' => $educationData['field_of_study'] ?? null,
-                'status' => $educationData['status'] ?? 'Completed', // Default to Completed
+                'education_level' => $educationLevel,
+                'field_of_study' => $fieldOfStudy,
+                'status' => $educationData['status'] ?? 'Completed',
                 'institution' => $educationData['institution'],
                 'start_date' => $educationData['start_date'] ?? null,
                 'end_date' => $educationData['end_date'] ?? null,
@@ -471,12 +447,9 @@ class ProfileController extends Controller
 
     private function updateExperience(User $user, array $experiences)
     {
-        // Delete existing experience records
         $user->experiences()->delete();
 
-        // Create new experience records
         foreach ($experiences as $experienceData) {
-            // Skip empty entries
             if (empty($experienceData['job_title']) || empty($experienceData['company'])) {
                 continue;
             }
@@ -504,6 +477,7 @@ class ProfileController extends Controller
                     'relationship' => trim($ref['relationship'] ?? ''),
                     'email' => trim($ref['email']),
                     'phone' => trim($ref['phone'] ?? ''),
+                    'context' => trim($ref['context'] ?? ''),
                     'notes' => $ref['notes'] ?? null,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -522,12 +496,13 @@ class ProfileController extends Controller
 
         $qualificationsToCreate = [];
         foreach ($qualifications as $qual) {
-            if (!empty($qual['title']) && !empty($qual['institution'])) {
+            // Make qualifications completely optional
+            if (!empty($qual['title']) || !empty($qual['institution'])) {
                 $qualificationsToCreate[] = [
                     'user_id' => $user->id,
-                    'title' => trim($qual['title']),
+                    'title' => trim($qual['title'] ?? ''),
                     'type' => trim($qual['type'] ?? 'Certification'),
-                    'institution' => trim($qual['institution']),
+                    'institution' => trim($qual['institution'] ?? ''),
                     'issued_date' => $qual['issued_date'] ?? null,
                     'notes' => $qual['notes'] ?? null,
                     'created_at' => now(),
