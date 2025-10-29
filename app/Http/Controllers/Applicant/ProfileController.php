@@ -137,14 +137,73 @@ class ProfileController extends Controller
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
-            ]);
+            ]);public function store(Request $request)
+            {
+                $user = Auth::user();
             
-            return redirect()
-                ->back()
-                ->withInput()
-                ->with('error', 'Sorry, something went wrong while creating your profile. Please try again or contact support.');
-        }
-    }
+                // Explicitly treat as draft ONLY if save_draft button was clicked
+                $isDraft = $request->has('save_draft') && $request->input('save_draft') == '1';
+            
+                \Log::info('Store Profile Action', [
+                    'user_id' => $user->id,
+                    'is_draft' => $isDraft,
+                    'button_clicked' => $request->input('save_draft')
+                ]);
+            
+                // If user already has a profile, use update instead
+                if ($user->profile) {
+                    return $this->update($request);
+                }
+            
+                // Validate depending on draft or final submission
+                $validated = $this->validateProfileData($request, $isDraft, false);
+            
+                try {
+                    DB::beginTransaction();
+            
+                    // Create new profile
+                    $profileData = [
+                        'user_id' => $user->id,
+                        'first_name' => $validated['first_name'] ?? null,
+                        'last_name' => $validated['last_name'] ?? null,
+                        'phone' => $validated['phone'] ?? null,
+                        'district' => $validated['location'] ?? null,
+                        'is_draft' => $isDraft,
+                        'completed_at' => $isDraft ? null : now(),
+                    ];
+            
+                    $profile = ApplicantProfile::create($profileData);
+            
+                    // Save related data
+                    $this->saveProfileRelatedData($user, $validated, $request);
+            
+                    DB::commit();
+            
+                    $message = $isDraft
+                        ? 'Profile saved as draft successfully!'
+                        : 'Profile submitted successfully!';
+            
+                    return redirect()
+                        ->route('applicant.profile.create')
+                        ->with('success', $message);
+            
+                } catch (\Exception $e) {
+                    DB::rollBack();
+            
+                    \Log::error('Profile creation failed', [
+                        'user_id' => $user->id,
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                    ]);
+            
+                    return redirect()
+                        ->back()
+                        ->withInput()
+                        ->with('error', 'Sorry, something went wrong while saving your profile.');
+                }
+            }
+            
 
     public function show(string $id)
     {
