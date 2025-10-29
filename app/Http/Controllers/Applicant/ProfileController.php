@@ -82,7 +82,7 @@ class ProfileController extends Controller
         $user = Auth::user();
     
         // Explicitly treat as draft ONLY if save_draft button was clicked
-        $isDraft = $request->has('save_draft') && $request->input('save_draft') == '1';
+        $isDraft = $request->has('save_draft') && $request->input('save_draft') == '1' ? 1 : 0;
     
         \Log::info('Store Profile Action', [
             'user_id' => $user->id,
