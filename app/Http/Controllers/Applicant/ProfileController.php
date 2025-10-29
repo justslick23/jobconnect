@@ -120,8 +120,13 @@ class ProfileController extends Controller
 
             DB::commit();
 
-            $message = $isDraft ? 'Profile saved as draft successfully!' : 'Profile submitted successfully!';
-            return redirect()->back()->with('success', $message);
+            $message = $isDraft ? 'Profile saved as draft successfully!' : 'Profile updated successfully!';
+
+            return redirect()
+            ->route('applicant.profile.create')
+            ->with('success', $message);
+        
+            
 
         } catch (\Exception $e) {
             DB::rollBack();
