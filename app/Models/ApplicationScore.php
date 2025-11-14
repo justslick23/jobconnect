@@ -13,8 +13,13 @@ class ApplicationScore extends Model
         'education_score',
         'qualification_bonus',
         'total_score',
+        'reasoning', // ADD THIS
+
     ];
 
-
+    public function application()
+    {
+        return $this->belongsTo(JobApplication::class);
+    }
     
 }

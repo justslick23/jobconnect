@@ -6,93 +6,129 @@ use App\Mail\ApplicationNotShortlistedMail;
 use App\Models\JobRequisition;
 use App\Models\ShortlistingSetting;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
-use Carbon\Carbon;
-
 class AutoShortlistCommand extends Command
 {
-    // CLI signature - threshold is optional now
     protected $signature = 'jobs:auto-shortlist {--threshold=} {--requisition-id=} {--force}';
-    protected $description = 'Run auto-shortlisting for job requisitions, update statuses and notify non-shortlisted applicants';
+    protected $description = 'AI-powered auto-shortlisting using Gemini for intelligent candidate evaluation';
+
+    protected $geminiApiKey;
+    protected $geminiModel = 'gemini-2.0-flash';
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->geminiApiKey = env('GEMINI_API_KEY');
+    }
 
     public function handle()
     {
+        Log::info('=== AUTO-SHORTLISTING COMMAND STARTED ===');
+        Log::info('Command options:', [
+            'threshold' => $this->option('threshold'),
+            'requisition-id' => $this->option('requisition-id'),
+            'force' => $this->option('force'),
+        ]);
+
+        if (!$this->geminiApiKey) {
+            Log::error('Gemini API key not configured');
+            $this->error("Gemini API key not configured. Please set GEMINI_API_KEY in your .env file.");
+            return Command::FAILURE;
+        }
+
+        Log::info('Gemini API key found, model: ' . $this->geminiModel);
+
         $requisitionId = $this->option('requisition-id');
         $force = $this->option('force');
 
-        // Load shortlisting settings
+        Log::info('Fetching shortlisting settings...');
         $settings = ShortlistingSetting::first();
-
         if (!$settings) {
+            Log::error('Shortlisting settings not found in database');
             $this->error("Shortlisting settings not found. Please configure them first.");
             return Command::FAILURE;
         }
 
-        // Validate settings weights
-        if (!$this->validateSettings($settings)) {
-            $this->error("Invalid shortlisting settings configuration.");
-            return Command::FAILURE;
-        }
+        Log::info('Shortlisting settings loaded:', [
+            'skills_weight' => $settings->skills_weight,
+            'experience_weight' => $settings->experience_weight,
+            'education_weight' => $settings->education_weight,
+            'qualification_bonus' => $settings->qualification_bonus,
+            'threshold' => $settings->threshold,
+        ]);
 
-        // --- Use CLI threshold if provided, otherwise take from settings ---
         $threshold = $this->option('threshold') 
                      ? (float) $this->option('threshold') 
-                     : ($settings->threshold ?? 70); // default fallback
+                     : ($settings->threshold ?? 70);
 
-       $query = JobRequisition::query();
+        Log::info('Using threshold: ' . $threshold . '%');
 
-                    // Filter by specific requisition ID if provided
-                    if ($requisitionId) {
-                        $query->where('id', $requisitionId);
+        $query = JobRequisition::query();
 
-                        if (!$force) {
-                            $query->where('auto_shortlisting_completed', false);
-                        }
+        if ($requisitionId) {
+            Log::info('Processing specific requisition ID: ' . $requisitionId);
+            $query->where('id', $requisitionId);
+            if (!$force) {
+                $query->where('auto_shortlisting_completed', false);
+            }
+            $query->where('job_status', 'closed');
+        } else {
+            Log::info('Processing all closed requisitions that need auto-shortlisting');
+            $query->where('job_status', 'closed')
+                ->where('auto_shortlisting_completed', false);
+        }
 
-                        // Only run if job is closed
-                        $query->where('job_status', 'closed');
-
-                    } else {
-                        // Only closed jobs that haven't been short-listed yet
-                        $query->where('job_status', 'closed')
-                            ->where('auto_shortlisting_completed', false);
-                    }
-
-                    $requisitions = $query->get();
-
+        $requisitions = $query->get();
+        Log::info('Found ' . $requisitions->count() . ' requisition(s) to process');
 
         if ($requisitions->isEmpty()) {
             $msg = $requisitionId 
                 ? "No job requisition found with ID #{$requisitionId} that needs auto-shortlisting."
                 : 'No job requisitions found that need auto-shortlisting.';
+            Log::info($msg);
             $this->info($msg);
             return Command::SUCCESS;
         }
 
-        $this->info("Starting auto-shortlisting for {$requisitions->count()} job requisition(s) with threshold {$threshold}%...");
+        $this->info("Starting AI-powered auto-shortlisting for {$requisitions->count()} job requisition(s) with threshold {$threshold}%...");
 
         $successCount = 0;
         $failureCount = 0;
 
         foreach ($requisitions as $requisition) {
+            Log::info("--- Processing Job Requisition #{$requisition->id}: {$requisition->title} ---");
+            
             try {
                 if (!$force && $requisition->auto_shortlisting_completed) {
+                    Log::warning("Job Requisition #{$requisition->id} already processed. Skipping...");
                     $this->warn("⚠️ Job Requisition #{$requisition->id} already processed. Skipping...");
                     continue;
                 }
 
                 if ($this->processRequisition($requisition, $threshold, $settings, $force)) {
                     $successCount++;
+                    Log::info("Job Requisition #{$requisition->id} processed successfully");
                 } else {
                     $failureCount++;
+                    Log::error("Job Requisition #{$requisition->id} processing failed");
                 }
             } catch (\Exception $e) {
                 $this->error("❌ Job Requisition #{$requisition->id} failed: {$e->getMessage()}");
-                Log::error("Auto-shortlisting failed for Job Requisition #{$requisition->id}: " . $e->getMessage());
+                Log::error("Auto-shortlisting exception for Job Requisition #{$requisition->id}", [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
                 $failureCount++;
             }
         }
+
+        Log::info('=== AUTO-SHORTLISTING COMMAND COMPLETED ===', [
+            'success_count' => $successCount,
+            'failure_count' => $failureCount,
+        ]);
 
         $this->info("🎉 Auto-shortlisting completed! Success: {$successCount}, Failures: {$failureCount}");
         return $failureCount > 0 ? Command::FAILURE : Command::SUCCESS;
@@ -100,58 +136,136 @@ class AutoShortlistCommand extends Command
 
     protected function processRequisition(JobRequisition $requisition, float $threshold, ShortlistingSetting $settings, bool $force = false): bool
     {
+        Log::info("Processing requisition #{$requisition->id}", [
+            'title' => $requisition->title,
+            'force' => $force,
+            'already_completed' => $requisition->auto_shortlisting_completed,
+        ]);
+
         if (!$force && $requisition->auto_shortlisting_completed) {
+            Log::warning("Requisition #{$requisition->id} already completed, skipping");
             $this->warn("⚠️ Job Requisition #{$requisition->id} already processed.");
             return true;
         }
 
         if ($force && $requisition->auto_shortlisting_completed) {
+            Log::info("Force flag enabled - re-running shortlisting for requisition #{$requisition->id}");
             $this->info("🔄 Job Requisition #{$requisition->id}: Force re-running shortlisting...");
         }
 
+        Log::info("Loading applications for requisition #{$requisition->id}");
         $applications = $requisition->applications()
             ->with(['user.skills', 'user.experiences', 'user.education', 'user.qualifications'])
             ->get();
 
+        Log::info("Loaded {$applications->count()} applications for requisition #{$requisition->id}");
+
         if ($applications->isEmpty()) {
+            Log::warning("No applications found for requisition #{$requisition->id}");
             $this->warn("⚠️ Job Requisition #{$requisition->id} has no applications.");
+            
             $requisition->update([
                 'auto_shortlisting_completed' => true,
                 'auto_shortlisting_completed_at' => now()
             ]);
+            
+            Log::info("Marked requisition #{$requisition->id} as completed with no applications");
             return true;
         }
 
+        $this->info("🤖 Using Gemini AI to evaluate {$applications->count()} applications...");
+        Log::info("Starting Gemini AI evaluation for {$applications->count()} applications");
+
         $shortlisted = collect();
-        $jobSkills = $requisition->skills ? $requisition->skills->pluck('name')->toArray() : [];
-        $totalJobSkills = count($jobSkills);
-        $minExperience = (float) ($requisition->min_experience ?? 0);
+        $batchSize = 5;
+        $applicationBatches = $applications->chunk($batchSize);
 
-        foreach ($applications as $application) {
-            $user = $application->user;
-            if (!$user) continue;
+        Log::info("Processing applications in {$applicationBatches->count()} batches of {$batchSize}");
 
-            $scores = $this->calculateApplicationScores($user, $jobSkills, $totalJobSkills, $minExperience, $requisition, $settings);
+        foreach ($applicationBatches as $batchIndex => $batch) {
+            $this->info("Processing batch " . ($batchIndex + 1) . "/" . $applicationBatches->count());
+            Log::info("=== Batch " . ($batchIndex + 1) . "/" . $applicationBatches->count() . " ===");
+            
+            foreach ($batch as $application) {
+                $userName = $application->user ? $application->user->name : 'Unknown';
+                $userEmail = $application->user ? $application->user->email : 'No email';
+                
+                Log::info("Evaluating application #{$application->id}", [
+                    'user_name' => $userName,
+                    'user_email' => $userEmail,
+                    'current_status' => $application->status,
+                ]);
+                
+                try {
+                    $evaluation = $this->evaluateApplicationWithGemini($application, $requisition, $settings);
+                    
+                    if ($evaluation) {
+                        Log::info("AI evaluation successful for application #{$application->id}", [
+                            'scores' => $evaluation,
+                        ]);
+                        
+                        // Save scores
+                        $application->score()->updateOrCreate([], [
+                            'skills_score' => $evaluation['skills_score'],
+                            'experience_score' => $evaluation['experience_score'],
+                            'education_score' => $evaluation['education_score'],
+                            'qualification_bonus' => $evaluation['qualification_bonus'],
+                            'total_score' => $evaluation['total_score'],
+                            'reasoning' => $evaluation['reasoning'], // ADD THIS LINE
 
-            $application->score()->updateOrCreate([], [
-                'skills_score'        => $scores['skills_score'],
-                'experience_score'    => $scores['experience_score'],
-                'education_score'     => $scores['education_score'],
-                'qualification_bonus' => $scores['qualification_bonus'],
-                'total_score'         => $scores['total_score'],
-            ]);
+                        ]);
 
-            if ($scores['total_score'] >= $threshold) {
-                $application->status = 'shortlisted';
-                $shortlisted->push($application);
+                        Log::info("Scores saved to database for application #{$application->id}");
+
+                        // Update application status
+                         // Update application status
+    $oldStatus = $application->status;
+    if ($evaluation['total_score'] >= $threshold) {
+        $application->status = 'shortlisted';
+        $shortlisted->push($application);
+        Log::info("Application #{$application->id} SHORTLISTED (score: {$evaluation['total_score']}% >= threshold: {$threshold}%)");
+    } else {
+        Log::info("Application #{$application->id} NOT shortlisted (score: {$evaluation['total_score']}% < threshold: {$threshold}%)");
+    }
+
+    $application->saveQuietly();
+    Log::info("Application status updated: {$oldStatus} -> {$application->status}");
+                        // Truncate reasoning for display
+                        $displayReasoning = strlen($evaluation['reasoning']) > 80 
+                            ? substr($evaluation['reasoning'], 0, 77) . '...' 
+                            : $evaluation['reasoning'];
+                            
+                        $this->line("  ✓ {$userName}: {$evaluation['total_score']}% - {$displayReasoning}");
+                    } else {
+                        Log::error("AI evaluation returned null for application #{$application->id}");
+                        $this->warn("  ⚠️ Failed to evaluate application for {$userName}");
+                    }
+                    
+                    // Small delay to respect API rate limits
+                    Log::debug("Sleeping 0.5s before next API call");
+                    usleep(500000);
+                    
+                } catch (\Exception $e) {
+                    $this->error("  ❌ Error evaluating {$userName}: {$e->getMessage()}");
+                    Log::error("Exception during evaluation of application #{$application->id}", [
+                        'user_name' => $userName,
+                        'message' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                    ]);
+                }
             }
-
-            $application->saveQuietly();
         }
+
+        Log::info("All applications processed. Shortlisted: {$shortlisted->count()}/{$applications->count()}");
 
         $notShortlistedCount = 0;
         if (!$force || !$requisition->auto_shortlisting_completed) {
+            Log::info("Processing non-shortlisted applications for requisition #{$requisition->id}");
             $notShortlistedCount = $this->processNonShortlistedApplications($requisition);
+            Log::info("{$notShortlistedCount} applications marked as rejected");
+        } else {
+            Log::info("Skipping non-shortlisted processing (force re-run)");
         }
 
         $requisition->update([
@@ -159,442 +273,559 @@ class AutoShortlistCommand extends Command
             'auto_shortlisting_completed_at' => now()
         ]);
 
+        Log::info("Requisition #{$requisition->id} marked as completed", [
+            'completed_at' => now()->toDateTimeString(),
+        ]);
+
         $this->info("✅ Job Requisition #{$requisition->id}: {$shortlisted->count()}/{$applications->count()} shortlisted, {$notShortlistedCount} rejected.");
 
         return true;
     }
 
-    protected function calculateApplicationScores($user, array $jobSkills, int $totalJobSkills, float $minExperience, JobRequisition $requisition, ShortlistingSetting $settings): array
+    protected function evaluateApplicationWithGemini($application, JobRequisition $requisition, ShortlistingSetting $settings): ?array
     {
-        // Enhanced skills matching with more lenient scoring and keyword matching
+        $user = $application->user;
+        if (!$user) {
+            Log::warning("Application {$application->id} has no associated user");
+            return null;
+        }
+
+        Log::info("Building evaluation prompt for application #{$application->id}");
+        $prompt = $this->buildEvaluationPrompt($user, $requisition, $settings);
+        
+        Log::debug("Prompt generated", [
+            'application_id' => $application->id,
+            'prompt_length' => strlen($prompt),
+            'prompt_preview' => substr($prompt, 0, 200) . '...',
+        ]);
+
+        try {
+            Log::info("Sending request to Gemini API", [
+                'model' => $this->geminiModel,
+                'application_id' => $application->id,
+                'user' => $user->name,
+            ]);
+
+            $startTime = microtime(true);
+            
+            $response = Http::timeout(45)
+                ->retry(2, 1000)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                ])
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/{$this->geminiModel}:generateContent?key={$this->geminiApiKey}", [
+                    'contents' => [
+                        [
+                            'parts' => [
+                                ['text' => $prompt]
+                            ]
+                        ]
+                    ],
+                    'generationConfig' => [
+                        'temperature' => 0.2,
+                        'topK' => 40,
+                        'topP' => 0.95,
+                        'maxOutputTokens' => 1024,
+                    ],
+                    'safetySettings' => [
+                        [
+                            'category' => 'HARM_CATEGORY_HARASSMENT',
+                            'threshold' => 'BLOCK_NONE'
+                        ],
+                        [
+                            'category' => 'HARM_CATEGORY_HATE_SPEECH',
+                            'threshold' => 'BLOCK_NONE'
+                        ],
+                        [
+                            'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+                            'threshold' => 'BLOCK_NONE'
+                        ],
+                        [
+                            'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                            'threshold' => 'BLOCK_NONE'
+                        ]
+                    ]
+                ]);
+
+            $responseTime = round((microtime(true) - $startTime) * 1000, 2);
+            Log::info("Gemini API response received", [
+                'application_id' => $application->id,
+                'status' => $response->status(),
+                'response_time_ms' => $responseTime,
+            ]);
+
+            if (!$response->successful()) {
+                $errorBody = $response->body();
+                Log::error("Gemini API error for application {$application->id}", [
+                    'status' => $response->status(),
+                    'error_body' => $errorBody,
+                    'headers' => $response->headers(),
+                ]);
+                return null;
+            }
+
+            $result = $response->json();
+            
+            Log::debug("Gemini API full response", [
+                'application_id' => $application->id,
+                'response' => $result,
+            ]);
+            
+            // Check for blocked content
+            if (isset($result['candidates'][0]['finishReason']) && 
+                $result['candidates'][0]['finishReason'] === 'SAFETY') {
+                Log::warning("Gemini blocked content for application {$application->id} due to safety filters", [
+                    'finish_reason' => $result['candidates'][0]['finishReason'],
+                    'safety_ratings' => $result['candidates'][0]['safetyRatings'] ?? null,
+                ]);
+                return null;
+            }
+            
+            if (!isset($result['candidates'][0]['content']['parts'][0]['text'])) {
+                Log::error("Unexpected Gemini response structure for application {$application->id}", [
+                    'response_structure' => json_encode($result),
+                ]);
+                return null;
+            }
+
+            $aiResponse = $result['candidates'][0]['content']['parts'][0]['text'];
+            
+            Log::info("AI response text extracted", [
+                'application_id' => $application->id,
+                'response_length' => strlen($aiResponse),
+                'response_preview' => substr($aiResponse, 0, 300),
+            ]);
+
+            Log::info("Full AI Response for application #{$application->id}:", [
+                'response' => $aiResponse,
+            ]);
+            
+            $parsed = $this->parseGeminiResponse($aiResponse, $settings, $application->id);
+            
+            if ($parsed) {
+                Log::info("Successfully parsed AI response for application #{$application->id}", [
+                    'parsed_scores' => $parsed,
+                ]);
+            }
+            
+            return $parsed;
+
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error("Gemini API connection failed for application {$application->id}", [
+                'message' => $e->getMessage(),
+                'exception' => get_class($e),
+            ]);
+            return null;
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            Log::error("Gemini API request failed for application {$application->id}", [
+                'message' => $e->getMessage(),
+                'response' => $e->response ? $e->response->body() : 'No response',
+            ]);
+            return null;
+        } catch (\Exception $e) {
+            Log::error("Unexpected error calling Gemini for application {$application->id}", [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return null;
+        }
+    }
+
+    protected function buildEvaluationPrompt($user, JobRequisition $requisition, ShortlistingSetting $settings): string
+    {
+        // Prepare job requirements
+        $jobSkills = $requisition->skills ? $requisition->skills->pluck('name')->toArray() : [];
+        $minExperience = $requisition->min_experience ?? 0;
+        $requiredEducation = $requisition->required_education_level ?? 'Not specified';
+        $requiredAreasOfStudy = is_array($requisition->required_areas_of_study) 
+            ? $requisition->required_areas_of_study 
+            : (json_decode($requisition->required_areas_of_study ?? '[]', true) ?: []);
+    
+        // Prepare candidate profile
         $userSkills = $user->skills ? $user->skills->pluck('name')->toArray() : [];
-        $matchedSkillsCount = $this->countMatchedSkills($jobSkills, $userSkills);
         
-        // More lenient skills scoring - full marks for matching a reasonable portion
-        $skillsFraction = $this->calculateSkillsFraction($matchedSkillsCount, $totalJobSkills);
-        $skillsScore = $skillsFraction * ($settings->skills_weight ?? 0);
+        $experiences = [];
+        if ($user->experiences && $user->experiences->isNotEmpty()) {
+            foreach ($user->experiences as $exp) {
+                $experiences[] = [
+                    'title' => $exp->title ?? '',
+                    'company' => $exp->company ?? '',
+                    'duration' => ($exp->start_date ?? '') . ' to ' . ($exp->end_date ?? 'Present'),
+                    'description' => $exp->description ?? ''
+                ];
+            }
+        }
+    
+        $education = [];
+        if ($user->education && $user->education->isNotEmpty()) {
+            foreach ($user->education as $edu) {
+                $education[] = [
+                    'level' => $edu->education_level ?? '',
+                    'field' => $edu->field_of_study ?? '',
+                    'institution' => $edu->institution ?? '',
+                    'status' => $edu->status ?? '',
+                    'end_date' => $edu->end_date ?? ''
+                ];
+            }
+        }
+    
+        $qualifications = [];
+        if ($user->qualifications && $user->qualifications->isNotEmpty()) {
+            foreach ($user->qualifications as $qual) {
+                $qualifications[] = [
+                    'name' => $qual->name ?? '',
+                    'issuer' => $qual->issuing_organization ?? '',
+                    'date' => $qual->issue_date ?? ''
+                ];
+            }
+        }
+    
+        // Format data for prompt
+        $jobSkillsFormatted = $this->formatArray($jobSkills);
+        $requiredAreasFormatted = $this->formatArray($requiredAreasOfStudy);
+        $userSkillsFormatted = $this->formatArray($userSkills);
+        $experiencesFormatted = $this->formatExperiences($experiences);
+        $educationFormatted = $this->formatEducation($education);
+        $qualificationsFormatted = $this->formatQualifications($qualifications);
+        
+        // Clean and prepare text fields
+        $jobDescription = strip_tags($requisition->description ?? 'Not provided');
+        $jobDescription = trim(preg_replace('/\s+/', ' ', $jobDescription)); // Remove extra whitespace
+        
+        $jobRequirements = $requisition->requirements ?? 'Not specified';
+        $jobRequirements = strip_tags($jobRequirements);
+        $jobRequirements = trim(preg_replace('/\s+/', ' ', $jobRequirements));
+    
+        $prompt = "You are an expert HR recruiter tasked with evaluating a job application. You MUST carefully analyze the candidate's profile against ALL the job requirements listed below and provide detailed, accurate scoring.\n\n";
+        
+        $prompt .= "=== JOB REQUIREMENTS ===\n\n";
+        $prompt .= "Position: {$requisition->title}\n\n";
+        
+        $prompt .= "Required Skills: {$jobSkillsFormatted}\n";
+        $prompt .= "IMPORTANT: Match candidate's skills against these required skills. Consider exact matches, related skills, and transferable skills.\n\n";
+        
+        $prompt .= "Minimum Experience Required: {$minExperience} years\n";
+        $prompt .= "IMPORTANT: Evaluate if candidate meets or exceeds this experience requirement.\n\n";
+        
+        $prompt .= "Required Education Level: {$requiredEducation}\n";
+        $prompt .= "Required Areas/Fields of Study: {$requiredAreasFormatted}\n";
+        $prompt .= "IMPORTANT: Check if candidate's education level meets requirements and if their field of study matches the required areas.\n\n";
+        
+        $prompt .= "Job Description:\n{$jobDescription}\n\n";
+        
+        $prompt .= "Additional Requirements:\n{$jobRequirements}\n";
+        $prompt .= "IMPORTANT: Consider how well the candidate meets these additional requirements.\n\n";
+    
+        $prompt .= "=== CANDIDATE PROFILE ===\n\n";
+        $prompt .= "Name: {$user->name}\n\n";
+        
+        $prompt .= "Candidate's Skills: {$userSkillsFormatted}\n\n";
+        
+        $prompt .= "Work Experience:\n{$experiencesFormatted}\n\n";
+        
+        $prompt .= "Education:\n{$educationFormatted}\n\n";
+        
+        $prompt .= "Additional Qualifications/Certifications:\n{$qualificationsFormatted}\n\n";
+        
+        $prompt .= "=== SCORING CRITERIA ===\n\n";
+        
+        $prompt .= "You must score the candidate on four criteria. Each score should be between 0-100.\n\n";
+        
+        $prompt .= "1. SKILLS MATCH (Weight: {$settings->skills_weight}%)\n";
+        $prompt .= "   - Compare the candidate's skills with the required skills listed above\n";
+        $prompt .= "   - Give higher scores for direct skill matches\n";
+        $prompt .= "   - Give moderate scores for related/transferable skills\n";
+        $prompt .= "   - Consider the depth and breadth of their skill set\n";
+        $prompt .= "   - Reference the job description and requirements\n\n";
+        
+        $prompt .= "2. EXPERIENCE MATCH (Weight: {$settings->experience_weight}%)\n";
+        $prompt .= "   - Evaluate total years of relevant work experience vs. minimum requirement ({$minExperience} years)\n";
+        $prompt .= "   - Assess the quality and relevance of their past roles to this position\n";
+        $prompt .= "   - Consider career progression and growth\n";
+        $prompt .= "   - Evaluate industry experience relevance\n";
+        $prompt .= "   - Reference the job description to determine relevance\n\n";
+        
+        $prompt .= "3. EDUCATION MATCH (Weight: {$settings->education_weight}%)\n";
+        $prompt .= "   - Compare education level: Required is '{$requiredEducation}'\n";
+        $prompt .= "   - Compare field of study with required areas: {$requiredAreasFormatted}\n";
+        $prompt .= "   - Consider completion status (completed vs. in progress)\n";
+        $prompt .= "   - Evaluate how well their educational background prepares them for this role\n\n";
+        
+        $prompt .= "4. ADDITIONAL QUALIFICATIONS BONUS (Bonus: {$settings->qualification_bonus}%)\n";
+        $prompt .= "   - Evaluate professional certifications relevant to the role\n";
+        $prompt .= "   - Consider licenses, awards, or recognitions\n";
+        $prompt .= "   - Assess specialized training that adds value\n";
+        $prompt .= "   - This is a BONUS score that can boost the overall rating\n\n";
+        
+        $prompt .= "=== EVALUATION INSTRUCTIONS ===\n\n";
+        $prompt .= "1. READ ALL JOB REQUIREMENTS CAREFULLY including skills, experience, education level, areas of study, description, and additional requirements\n";
+        $prompt .= "2. READ THE COMPLETE CANDIDATE PROFILE including all skills, experiences, education, and qualifications\n";
+        $prompt .= "3. For EACH scoring criterion, explicitly consider how the candidate matches the specific requirements\n";
+        $prompt .= "4. Be thorough but fair - recognize transferable skills and relevant experience even if not exact matches\n";
+        $prompt .= "5. Your reasoning should reference specific requirements and how the candidate meets or doesn't meet them\n";
+        $prompt .= "6. Provide scores between 0-100 for each criterion based on your analysis\n\n";
+        
+        $prompt .= "=== REQUIRED RESPONSE FORMAT ===\n\n";
+        $prompt .= "You MUST respond in EXACTLY this format (no markdown, no code blocks, just plain text):\n\n";
+        $prompt .= "SKILLS_SCORE: [number between 0-100]\n";
+        $prompt .= "EXPERIENCE_SCORE: [number between 0-100]\n";
+        $prompt .= "EDUCATION_SCORE: [number between 0-100]\n";
+        $prompt .= "QUALIFICATION_BONUS: [number between 0-100]\n";
+        $prompt .= "TOTAL_SCORE: [calculated weighted total, 0-100]\n";
+        $prompt .= "REASONING: [2-3 sentences explaining your evaluation, referencing specific requirements and how candidate meets/doesn't meet them]\n\n";
+        
+        $prompt .= "Now evaluate this candidate against ALL the requirements listed above.";
+    
+        return $prompt;
+    }
 
-        $totalExperienceYears = $this->calculateTotalExperienceYears($user);
-        $scoringMinExperience = $minExperience > 0 ? max($minExperience, 1) : 1;
-        $experienceFraction = $totalExperienceYears <= 0 ? 0 : min($totalExperienceYears / $scoringMinExperience, 1);
-        $experienceScore = $experienceFraction * ($settings->experience_weight ?? 0);
+    protected function parseGeminiResponse(string $response, ShortlistingSetting $settings, int $applicationId = null): ?array
+{
+    Log::info("Parsing Gemini response for application #{$applicationId}");
+    
+    try {
+        // Clean the response - remove markdown code blocks if present
+        $response = preg_replace('/```[a-z]*\n?/i', '', $response);
+        $response = trim($response);
+        
+        Log::debug("Cleaned response", [
+            'application_id' => $applicationId,
+            'cleaned_response' => $response,
+        ]);
+        
+        // Extract scores using regex with more flexible patterns
+        preg_match('/SKILLS[_\s]SCORE:?\s*(\d+(?:\.\d+)?)/i', $response, $skillsMatch);
+        preg_match('/EXPERIENCE[_\s]SCORE:?\s*(\d+(?:\.\d+)?)/i', $response, $experienceMatch);
+        preg_match('/EDUCATION[_\s]SCORE:?\s*(\d+(?:\.\d+)?)/i', $response, $educationMatch);
+        preg_match('/QUALIFICATION[_\s]BONUS:?\s*(\d+(?:\.\d+)?)/i', $response, $qualificationMatch);
+        preg_match('/TOTAL[_\s]SCORE:?\s*(\d+(?:\.\d+)?)/i', $response, $totalMatch);
+        preg_match('/REASONING:?\s*(.+?)(?:\n\n|$)/is', $response, $reasoningMatch);
 
-        $requiredEducationLevel = $requisition->required_education_level ?? null;
-        $requiredAreasOfStudy = $requisition->required_areas_of_study ?? [];
-        $educationFraction = $this->calculateEducationScore($user, $requiredEducationLevel, $requiredAreasOfStudy) / 100;
-        $educationScore = $educationFraction * ($settings->education_weight ?? 0);
+        Log::debug("Regex matches", [
+            'application_id' => $applicationId,
+            'skills_match' => $skillsMatch ?? 'none',
+            'experience_match' => $experienceMatch ?? 'none',
+            'education_match' => $educationMatch ?? 'none',
+            'qualification_match' => $qualificationMatch ?? 'none',
+            'reasoning_match' => isset($reasoningMatch[1]) ? substr($reasoningMatch[1], 0, 100) : 'none',
+        ]);
 
-        $hasQualification = $user->qualifications && $user->qualifications->isNotEmpty();
-        $qualificationBonusScore = $hasQualification ? ($settings->qualification_bonus ?? 0) : 0;
+        if (!$skillsMatch || !$experienceMatch || !$educationMatch) {
+            Log::error("Could not parse required scores from Gemini response", [
+                'application_id' => $applicationId,
+                'response_preview' => substr($response, 0, 500),
+                'missing_skills' => !$skillsMatch,
+                'missing_experience' => !$experienceMatch,
+                'missing_education' => !$educationMatch,
+            ]);
+            return null;
+        }
 
-        $totalWeight = ($settings->skills_weight ?? 0) + ($settings->experience_weight ?? 0) + ($settings->education_weight ?? 0) + ($settings->qualification_bonus ?? 0);
-        $rawTotal = $skillsScore + $experienceScore + $educationScore + $qualificationBonusScore;
-        $totalScore = $totalWeight > 0 ? min(($rawTotal / $totalWeight) * 100, 100) : 0;
+        // Get raw scores from Gemini (0-100 scale)
+        $skillsRaw = min((float) $skillsMatch[1], 100);
+        $experienceRaw = min((float) $experienceMatch[1], 100);
+        $educationRaw = min((float) $educationMatch[1], 100);
+        $qualificationRaw = isset($qualificationMatch[1]) ? min((float) $qualificationMatch[1], 100) : 0;
 
-        return [
-            'skills_score' => round($skillsScore, 2),
-            'experience_score' => round($experienceScore, 2),
-            'education_score' => round($educationScore, 2),
-            'education_percentage' => round($educationFraction * 100, 2),
-            'qualification_bonus' => round($qualificationBonusScore, 2),
+        Log::info("Raw scores from AI", [
+            'application_id' => $applicationId,
+            'skills_raw' => $skillsRaw,
+            'experience_raw' => $experienceRaw,
+            'education_raw' => $educationRaw,
+            'qualification_raw' => $qualificationRaw,
+        ]);
+
+        // Validate settings weights
+        $totalWeight = $settings->skills_weight + $settings->experience_weight + 
+                      $settings->education_weight;
+        
+        if ($totalWeight <= 0) {
+            Log::error("Invalid settings weights - total weight is 0", [
+                'application_id' => $applicationId,
+                'settings' => [
+                    'skills_weight' => $settings->skills_weight,
+                    'experience_weight' => $settings->experience_weight,
+                    'education_weight' => $settings->education_weight,
+                    'qualification_bonus' => $settings->qualification_bonus,
+                ],
+            ]);
+            return null;
+        }
+
+        // CORRECTED CALCULATION:
+        // Convert raw scores (0-100) to proportional contributions based on weights
+        // Each weighted score represents the percentage contribution to the total
+        
+        // Calculate weighted contributions (these are on a 0-weight scale)
+        $skillsContribution = ($skillsRaw / 100) * $settings->skills_weight;
+        $experienceContribution = ($experienceRaw / 100) * $settings->experience_weight;
+        $educationContribution = ($educationRaw / 100) * $settings->education_weight;
+        
+        // Calculate base score (0-100 scale)
+        $baseScore = (($skillsContribution + $experienceContribution + $educationContribution) / $totalWeight) * 100;
+        
+        // Calculate qualification bonus (this is additive, not weighted)
+        $qualificationBonus = ($qualificationRaw / 100) * $settings->qualification_bonus;
+        
+        // Total score = base score + qualification bonus (capped at 100)
+        $totalScore = min($baseScore + $qualificationBonus, 100);
+
+        Log::info("Score calculation breakdown", [
+            'application_id' => $applicationId,
+            'skills_contribution' => round($skillsContribution, 2),
+            'experience_contribution' => round($experienceContribution, 2),
+            'education_contribution' => round($educationContribution, 2),
+            'total_weight' => $totalWeight,
+            'base_score' => round($baseScore, 2),
+            'qualification_bonus' => round($qualificationBonus, 2),
             'total_score' => round($totalScore, 2),
-        ];
-    }
+        ]);
 
-    /**
-     * Calculate skills fraction with more lenient scoring
-     * Users can get full marks without matching all skills
-     */
-    protected function calculateSkillsFraction(float $matchedSkillsCount, int $totalJobSkills): float
-    {
-        if ($totalJobSkills == 0) {
-            return 1.0; // No skills required, full score
-        }
+        $reasoning = isset($reasoningMatch[1]) ? trim($reasoningMatch[1]) : 'AI evaluation completed';
         
-        if ($matchedSkillsCount == 0) {
-            return 0.0; // No skills matched, no score
-        }
-        
-        // Graduated scoring - get higher fractions for partial matches
-        // This gives diminishing returns but allows full marks with fewer skills
-        
-        // For 1-2 skills: need 100% match
-        if ($totalJobSkills <= 2) {
-            return $matchedSkillsCount / $totalJobSkills;
-        }
-        
-        // For 3-4 skills: can get full marks with 75% match
-        if ($totalJobSkills <= 4) {
-            $threshold = ceil($totalJobSkills * 0.75);
-            if ($matchedSkillsCount >= $threshold) {
-                return 1.0;
-            }
-            return $matchedSkillsCount / $threshold;
-        }
-        
-        // For 5+ skills: can get full marks with 60% match
-        $threshold = ceil($totalJobSkills * 0.6);
-        if ($matchedSkillsCount >= $threshold) {
-            return 1.0;
-        }
-        
-        // Scale score based on how close they are to the threshold
-        return $matchedSkillsCount / $threshold;
-    }
+        // Remove any remaining markdown or special characters from reasoning
+        $reasoning = strip_tags($reasoning);
+        $reasoning = preg_replace('/\*\*/', '', $reasoning);
 
-    protected function countMatchedSkills(array $jobSkills, array $userSkills): float
-    {
-        $matchedCount = 0;
-
-        foreach ($jobSkills as $jobSkill) {
-            if ($this->skillMatches($jobSkill, $userSkills)) {
-                $matchedCount++;
-            }
-        }
-
-        return $matchedCount;
-    }
-
-    protected function skillMatches(string $jobSkill, array $userSkills): bool
-    {
-        $jobSkillNormalized = $this->normalizeSkill($jobSkill);
-        
-        foreach ($userSkills as $userSkill) {
-            $userSkillNormalized = $this->normalizeSkill($userSkill);
-            
-            // Exact match after normalization
-            if ($jobSkillNormalized === $userSkillNormalized) {
-                return true;
-            }
-            
-            // Contains match (either direction)
-            if (strpos($userSkillNormalized, $jobSkillNormalized) !== false || 
-                strpos($jobSkillNormalized, $userSkillNormalized) !== false) {
-                return true;
-            }
-            
-            // Check for common skill variations and synonyms
-            if ($this->areSkillVariations($jobSkillNormalized, $userSkillNormalized)) {
-                return true;
-            }
-
-            // Enhanced keyword matching for related terms
-            if ($this->hasRelatedKeywords($jobSkillNormalized, $userSkillNormalized)) {
-                return true;
-            }
-        }
-        
-        return false;
-    }
-
-    protected function normalizeSkill(string $skill): string
-    {
-        // Remove common variations and normalize
-        $skill = strtolower(trim($skill));
-        
-        // Remove common words/suffixes
-        $removeWords = ['.js', '.net', ' programming', ' development', ' developer', ' language', ' framework', ' technology', ' skills', ' skill'];
-        $skill = str_replace($removeWords, '', $skill);
-        
-        // Remove special characters and extra spaces
-        $skill = preg_replace('/[^\w\s]/', ' ', $skill);
-        $skill = preg_replace('/\s+/', ' ', $skill);
-        
-        return trim($skill);
-    }
-
-    protected function areSkillVariations(string $skill1, string $skill2): bool
-    {
-        // Define common skill variations
-        $variations = [
-            'javascript' => ['js', 'ecmascript', 'javascript', 'java script'],
-            'python' => ['python', 'python3', 'py', 'python programming'],
-            'csharp' => ['c#', 'csharp', 'c sharp', 'dotnet', '.net', 'dot net'],
-            'nodejs' => ['node.js', 'nodejs', 'node', 'javascript backend', 'node js'],
-            'reactjs' => ['react.js', 'reactjs', 'react', 'react framework', 'react js'],
-            'vuejs' => ['vue.js', 'vuejs', 'vue', 'vue framework', 'vue js'],
-            'angular' => ['angular.js', 'angularjs', 'angular', 'angular framework'],
-            'mysql' => ['mysql', 'my sql', 'mysql database'],
-            'postgresql' => ['postgresql', 'postgres', 'postgre sql', 'postgres sql'],
-            'mongodb' => ['mongodb', 'mongo db', 'mongo', 'nosql'],
-            'photoshop' => ['photoshop', 'adobe photoshop', 'ps', 'photo shop'],
-            'illustrator' => ['illustrator', 'adobe illustrator', 'ai'],
-            'html' => ['html', 'html5', 'hypertext markup language', 'markup'],
-            'css' => ['css', 'css3', 'cascading style sheets', 'styling'],
-            'php' => ['php', 'php7', 'php8', 'hypertext preprocessor'],
-            'java' => ['java', 'java8', 'java11', 'java17', 'jdk'],
-            'cplusplus' => ['c++', 'cpp', 'c plus plus', 'cplusplus'],
-            'git' => ['git', 'github', 'gitlab', 'version control', 'source control'],
-            'docker' => ['docker', 'containerization', 'containers'],
-            'kubernetes' => ['kubernetes', 'k8s', 'container orchestration'],
-            'aws' => ['aws', 'amazon web services', 'cloud computing'],
-            'azure' => ['azure', 'microsoft azure', 'azure cloud'],
-            'gcp' => ['gcp', 'google cloud platform', 'google cloud'],
-        ];
-        
-        foreach ($variations as $baseSkill => $variantsList) {
-            if ((in_array($skill1, $variantsList) && in_array($skill2, $variantsList))) {
-                return true;
-            }
-        }
-        
-        return false;
-    }
-
-    /**
-     * Check for related keywords that might indicate similar skills
-     * This handles cases where people describe skills differently
-     */
-    protected function hasRelatedKeywords(string $jobSkill, string $userSkill): bool
-    {
-        // Define related keywords and concepts
-        $relatedKeywords = [
-            'web development' => ['frontend', 'backend', 'fullstack', 'full stack', 'web dev', 'website', 'web app', 'html', 'css', 'javascript'],
-            'frontend' => ['ui', 'user interface', 'client side', 'react', 'vue', 'angular', 'html', 'css', 'javascript'],
-            'backend' => ['server side', 'api', 'database', 'server', 'node', 'php', 'python', 'java'],
-            'database' => ['sql', 'mysql', 'postgresql', 'mongodb', 'data management', 'queries'],
-            'mobile development' => ['ios', 'android', 'react native', 'flutter', 'mobile app', 'app development'],
-            'ui design' => ['user interface', 'ux', 'user experience', 'design', 'figma', 'sketch', 'photoshop'],
-            'ux design' => ['user experience', 'ui', 'user interface', 'design', 'wireframes', 'prototyping'],
-            'data analysis' => ['analytics', 'data science', 'excel', 'sql', 'python', 'r', 'statistics'],
-            'project management' => ['pmp', 'agile', 'scrum', 'kanban', 'project coordination', 'team lead'],
-            'digital marketing' => ['seo', 'sem', 'social media', 'content marketing', 'google ads', 'facebook ads'],
-            'graphic design' => ['photoshop', 'illustrator', 'indesign', 'visual design', 'branding', 'logo design'],
-            'accounting' => ['bookkeeping', 'financial reporting', 'quickbooks', 'excel', 'financial analysis'],
-            'sales' => ['business development', 'lead generation', 'customer relations', 'crm', 'revenue'],
-            'customer service' => ['customer support', 'help desk', 'client relations', 'support', 'communication'],
-            'writing' => ['content writing', 'copywriting', 'technical writing', 'blog writing', 'content creation'],
-            'devops' => ['ci cd', 'deployment', 'automation', 'docker', 'kubernetes', 'aws', 'cloud'],
-            'testing' => ['qa', 'quality assurance', 'automation testing', 'manual testing', 'selenium'],
-            'machine learning' => ['ai', 'artificial intelligence', 'data science', 'python', 'tensorflow', 'deep learning'],
+        // Store the actual weighted scores for database
+        $result = [
+            'skills_score' => round($skillsContribution, 2),
+            'experience_score' => round($experienceContribution, 2),
+            'education_score' => round($educationContribution, 2),
+            'qualification_bonus' => round($qualificationBonus, 2),
+            'total_score' => round($totalScore, 2),
+            'reasoning' => substr($reasoning, 0, 500),
         ];
 
-        foreach ($relatedKeywords as $concept => $keywords) {
-            $jobSkillMatches = $this->containsAnyKeyword($jobSkill, [$concept, ...$keywords]);
-            $userSkillMatches = $this->containsAnyKeyword($userSkill, [$concept, ...$keywords]);
-            
-            if ($jobSkillMatches && $userSkillMatches) {
-                return true;
-            }
-        }
+        Log::info("Final parsed result", [
+            'application_id' => $applicationId,
+            'result' => $result,
+        ]);
 
-        // Check for partial word matches (useful for compound skills)
-        $jobWords = explode(' ', $jobSkill);
-        $userWords = explode(' ', $userSkill);
-        
-        foreach ($jobWords as $jobWord) {
-            if (strlen($jobWord) >= 4) { // Only check meaningful words
-                foreach ($userWords as $userWord) {
-                    if (strlen($userWord) >= 4 && 
-                        (strpos($userWord, $jobWord) !== false || strpos($jobWord, $userWord) !== false)) {
-                        return true;
-                    }
-                }
-            }
-        }
+        return $result;
 
-        return false;
+    } catch (\Exception $e) {
+        Log::error("Error parsing Gemini response", [
+            'application_id' => $applicationId,
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'response_preview' => substr($response, 0, 500),
+        ]);
+        return null;
+    }
+}
+
+    protected function formatArray(array $items): string
+    {
+        return empty($items) ? 'None specified' : implode(', ', $items);
     }
 
-    /**
-     * Check if a skill contains any of the given keywords
-     */
-    protected function containsAnyKeyword(string $skill, array $keywords): bool
+    protected function formatExperiences(array $experiences): string
     {
-        foreach ($keywords as $keyword) {
-            if (strpos($skill, $keyword) !== false) {
-                return true;
-            }
+        if (empty($experiences)) return 'No experience listed';
+        
+        $formatted = [];
+        foreach ($experiences as $exp) {
+            $formatted[] = "{$exp['title']} at {$exp['company']} ({$exp['duration']})";
         }
-        return false;
+        return implode(' | ', $formatted);
+    }
+
+    protected function formatEducation(array $education): string
+    {
+        if (empty($education)) return 'No education listed';
+        
+        $formatted = [];
+        foreach ($education as $edu) {
+            $status = !empty($edu['status']) ? " ({$edu['status']})" : '';
+            $formatted[] = "{$edu['level']} in {$edu['field']} from {$edu['institution']}{$status}";
+        }
+        return implode(' | ', $formatted);
+    }
+
+    protected function formatQualifications(array $qualifications): string
+    {
+        if (empty($qualifications)) return 'No additional qualifications';
+        
+        $formatted = [];
+        foreach ($qualifications as $qual) {
+            $formatted[] = "{$qual['name']} from {$qual['issuer']}";
+        }
+        return implode(' | ', $formatted);
     }
 
     protected function processNonShortlistedApplications(JobRequisition $requisition): int
     {
+        Log::info("Processing non-shortlisted applications for requisition #{$requisition->id}");
+        
         $notShortlisted = $requisition->applications()
             ->whereNotIn('status', ['shortlisted', 'hired', 'offer sent'])
             ->with('user')
             ->get();
 
+        Log::info("Found {$notShortlisted->count()} non-shortlisted applications");
+
         $processedCount = 0;
 
+        /* Uncomment this block to enable rejection emails
         foreach ($notShortlisted as $application) {
             try {
+                $oldStatus = $application->status;
                 $application->status = 'rejected';
                 $application->saveQuietly();
 
+                Log::info("Application #{$application->id} status changed", [
+                    'from' => $oldStatus,
+                    'to' => 'rejected',
+                    'user' => $application->user ? $application->user->name : 'Unknown',
+                ]);
+
                 if ($application->user && $application->user->email) {
+                    Log::info("Sending rejection email", [
+                        'application_id' => $application->id,
+                        'email' => $application->user->email,
+                        'user' => $application->user->name,
+                    ]);
+                    
                     Mail::to($application->user->email)->send(
                         new ApplicationNotShortlistedMail($application->user->name, $requisition->title)
                     );
+                    
+                    Log::info("Rejection email sent successfully", [
+                        'application_id' => $application->id,
+                        'email' => $application->user->email,
+                    ]);
+                    
                     $processedCount++;
+                } else {
+                    Log::warning("Cannot send email - user or email missing", [
+                        'application_id' => $application->id,
+                        'has_user' => $application->user !== null,
+                        'has_email' => $application->user ? ($application->user->email !== null) : false,
+                    ]);
                 }
             } catch (\Exception $mailException) {
                 $this->warn("⚠️ Failed to email {$application->user->email}: {$mailException->getMessage()}");
-                Log::error("Email failure for application ID {$application->id}: " . $mailException->getMessage());
+                Log::error("Email failure for application", [
+                    'application_id' => $application->id,
+                    'email' => $application->user ? $application->user->email : 'No email',
+                    'message' => $mailException->getMessage(),
+                    'file' => $mailException->getFile(),
+                    'line' => $mailException->getLine(),
+                ]);
             }
         }
+        */
+
+        Log::info("Completed processing non-shortlisted applications", [
+            'requisition_id' => $requisition->id,
+            'processed_count' => $processedCount,
+            'total_not_shortlisted' => $notShortlisted->count(),
+        ]);
 
         return $processedCount;
     }
-
-    protected function calculateEducationScore($user, $requiredEducationLevel, $requiredAreasOfStudy = []): float 
-    {
-        if (!$user->education || $user->education->isEmpty()) return 0.0;
-        if (!$requiredEducationLevel) return 100.0;
-    
-        $requiredScore = $this->mapEducationLevelToScore($requiredEducationLevel);
-        $bestScore = 0.0;
-    
-        foreach ($user->education as $education) {
-            $educationLevel = $education->education_level ?? null;
-            $educationStatus = strtolower($education->status ?? '');
-            $fieldOfStudy = $education->field_of_study ?? null;
-            $hasEndDate = !empty($education->end_date);
-    
-            if (!$educationLevel) continue;
-    
-            $educationLevelScore = $this->mapEducationLevelToScore($educationLevel);
-            
-            // Three main criteria
-            $meetsLevelRequirement = $educationLevelScore >= $requiredScore;
-            $meetsFieldRequirement = $this->checkFieldOfStudyMatch($fieldOfStudy, $requiredAreasOfStudy);
-            $isComplete = ($educationStatus === 'complete' && $hasEndDate);
-            
-            $currentScore = 0.0;
-            
-            if ($meetsLevelRequirement && $meetsFieldRequirement && $isComplete) {
-                // Perfect match: 100%
-                $currentScore = 100.0;
-                
-            } elseif ($meetsLevelRequirement && $meetsFieldRequirement) {
-                // Right level + right field, but incomplete: 70%
-                $currentScore = 70.0;
-                
-            } elseif ($meetsLevelRequirement && $isComplete) {
-                // Right level + complete, but wrong field: 40%
-                $currentScore = 40.0;
-                
-            } elseif ($meetsFieldRequirement && $isComplete) {
-                // Right field + complete, but level too low: 30%
-                $currentScore = 30.0;
-                
-            } elseif ($meetsLevelRequirement) {
-                // Only right level (wrong field, incomplete): 25%
-                $currentScore = 25.0;
-                
-            } elseif ($meetsFieldRequirement) {
-                // Only right field (level too low, incomplete): 15%
-                $currentScore = 15.0;
-                
-            } elseif ($isComplete) {
-                // Only complete (wrong level, wrong field): 10%
-                $currentScore = 10.0;
-                
-            } else {
-                // None of the criteria met: 0%
-                $currentScore = 0.0;
-            }
-    
-            $bestScore = max($bestScore, $currentScore);
-        }
-    
-        return round($bestScore, 2);
-    }
-    
-    protected function checkFieldOfStudyMatch($userFieldOfStudy, $requiredAreasOfStudy): bool
-    {
-        // If no field requirements, consider it a match
-        if (empty($requiredAreasOfStudy)) return true;
-        
-        // If user has no field of study, no match
-        if (empty($userFieldOfStudy)) return false;
-    
-        $userField = strtolower(trim($userFieldOfStudy));
-        
-        foreach ($requiredAreasOfStudy as $requiredArea) {
-            $requiredField = strtolower(trim($requiredArea));
-            
-            // Exact match
-            if ($userField === $requiredField) return true;
-            
-            // Check if either contains the other (handles variations)
-            if (strpos($userField, $requiredField) !== false || 
-                strpos($requiredField, $userField) !== false) {
-                return true;
-            }
-        }
-        
-        return false;
-    }
-
-    protected function calculateTotalExperienceYears($user): float
-    {
-        if (!$user->experiences || $user->experiences->isEmpty()) return 0.0;
-
-        try {
-            $periods = [];
-            foreach ($user->experiences as $experience) {
-                if (!$experience->start_date) continue;
-
-                $startDate = Carbon::parse($experience->start_date);
-                $endDate = $experience->end_date ? Carbon::parse($experience->end_date) : Carbon::now();
-                if ($endDate->lt($startDate)) continue;
-
-                $periods[] = ['start' => $startDate, 'end' => $endDate];
-            }
-
-            if (empty($periods)) return 0.0;
-
-            usort($periods, fn($a, $b) => $a['start']->timestamp <=> $b['start']->timestamp);
-
-            $totalDays = 0;
-            $currentStart = $periods[0]['start'];
-            $currentEnd = $periods[0]['end'];
-
-            for ($i = 1; $i < count($periods); $i++) {
-                $period = $periods[$i];
-                if ($period['start']->lte($currentEnd)) {
-                    $currentEnd = $currentEnd->gt($period['end']) ? $currentEnd : $period['end'];
-                } else {
-                    $totalDays += $currentStart->diffInDays($currentEnd);
-                    $currentStart = $period['start'];
-                    $currentEnd = $period['end'];
-                }
-            }
-
-            $totalDays += $currentStart->diffInDays($currentEnd);
-            $totalYears = $totalDays / 365.25;
-            return round($totalYears, 1);
-
-        } catch (\Exception $e) {
-            Log::warning("Error calculating experience years for user {$user->id}: " . $e->getMessage());
-            return 0.0;
-        }
-    }
-
-    protected function mapEducationLevelToScore($level): float
-    {
-        $levels = [
-            'High School'          => 5.0,
-            'Certificate'          => 6.0,
-            'Diploma'              => 7.0,
-            'Associate Degree'     => 7.5,
-            "Bachelor's Degree"    => 9.0,
-            'Postgraduate Diploma' => 9.5,
-            "Master's Degree"      => 10.0,
-            'Doctorate (PhD)'      => 10.0,
-        ];
-        $key = trim($level);
-        return $levels[$key] ?? 0.0;
-    }
-
-    protected function validateSettings(ShortlistingSetting $settings): bool
-    {
-        $requiredFields = ['skills_weight', 'experience_weight', 'education_weight'];
-        foreach ($requiredFields as $field) {
-            if (!isset($settings->$field) || !is_numeric($settings->$field)) return false;
-        }
-        return true;
-    }
-}
+} 

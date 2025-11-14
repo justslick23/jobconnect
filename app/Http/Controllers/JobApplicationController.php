@@ -593,8 +593,7 @@ public function exportByJob($jobId)
             'I' => 'Experience (Years)',
             'J' => 'Education Level',
             'K' => 'Skills',
-            'L' => 'Cover Letter Preview',
-            'M' => 'Last Updated'
+            'L' => 'AI Reasoning'
         ];
 
         foreach ($headers as $column => $header) {
@@ -662,8 +661,8 @@ public function exportByJob($jobId)
             $sheet->setCellValue('K' . $row, $skillsString);
 
             // Cover letter preview
-            $coverLetter = $application->cover_letter ? substr(strip_tags($application->cover_letter), 0, 100) . '...' : 'N/A';
-            $sheet->setCellValue('L' . $row, $coverLetter);
+            $sheet->setCellValue('L' . $row, $application->score->reasoning ?? 'Not evaluated',
+        );
 
             $sheet->setCellValue('M' . $row, $application->updated_at->format('M j, Y g:i A'));
 
