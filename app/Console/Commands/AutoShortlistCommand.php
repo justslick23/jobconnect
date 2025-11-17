@@ -713,7 +713,7 @@ class AutoShortlistCommand extends Command
             'education_score' => round($educationContribution, 2),
             'qualification_bonus' => round($qualificationBonus, 2),
             'total_score' => round($totalScore, 2),
-            'reasoning' => substr($reasoning, 0, 500),
+            'reasoning' => substr($reasoning, 0, 1000), // Limit reasoning length
         ];
 
         Log::info("Final parsed result", [
