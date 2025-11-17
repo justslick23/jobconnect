@@ -499,7 +499,7 @@ class AutoShortlistCommand extends Command
         $jobRequirements = trim(preg_replace('/\s+/', ' ', $jobRequirements));
     
         $prompt = "You are an expert HR recruiter tasked with evaluating a job application. You MUST carefully analyze the candidate's profile against ALL the job requirements listed below and provide detailed, accurate scoring.\n\n";
-        
+    
         $prompt .= "=== JOB REQUIREMENTS ===\n\n";
         $prompt .= "Position: {$requisition->title}\n\n";
         
@@ -507,7 +507,7 @@ class AutoShortlistCommand extends Command
         $prompt .= "IMPORTANT: Match candidate's skills against these required skills. Consider exact matches, related skills, and transferable skills.\n\n";
         
         $prompt .= "Minimum Experience Required: {$minExperience} years\n";
-        $prompt .= "IMPORTANT: Evaluate if candidate meets or exceeds this experience requirement. Also evaluate their roles within that experience.\n\n\n";
+        $prompt .= "IMPORTANT: Evaluate if candidate meets or exceeds this experience requirement.\n\n";
         
         $prompt .= "Required Education Level: {$requiredEducation}\n";
         $prompt .= "Required Areas/Fields of Study: {$requiredAreasFormatted}\n";
@@ -515,66 +515,83 @@ class AutoShortlistCommand extends Command
         
         $prompt .= "Job Description:\n{$jobDescription}\n\n";
         
-        $prompt .= "Additional Job Requirements:\n{$jobRequirements}\n";
-        $prompt .= "IMPORTANT: Consider how well the candidate meets these additional requirements.\n\n";
+        $prompt .= "Additional Job Requirements:\n{$jobRequirements}\n\n";
+        
+
     
         $prompt .= "=== CANDIDATE PROFILE ===\n\n";
         $prompt .= "Name: {$user->name}\n\n";
-        
         $prompt .= "Candidate's Skills: {$userSkillsFormatted}\n\n";
-        
         $prompt .= "Work Experience:\n{$experiencesFormatted}\n\n";
-        
         $prompt .= "Education:\n{$educationFormatted}\n\n";
-        
         $prompt .= "Additional Qualifications/Certifications:\n{$qualificationsFormatted}\n\n";
         
         $prompt .= "=== SCORING CRITERIA ===\n\n";
-        
-        $prompt .= "You must score the candidate on four criteria. Each score should be between 0-100.\n\n";
+        $prompt .= "You must score the candidate on four criteria.\n\n";
         
         $prompt .= "1. SKILLS MATCH (Weight: {$settings->skills_weight}%)\n";
-        $prompt .= "   - Compare the candidate's skills with the required skills listed above\n";
-        $prompt .= "   - Give higher scores for direct skill matches\n";
-        $prompt .= "   - Give moderate scores for related/transferable skills\n";
-        $prompt .= "   - Consider the depth and breadth of their skill set\n";
-        $prompt .= "   - Reference the job description and requirements\n\n";
+        $prompt .= "   Score 0-100 based on:\n";
+        $prompt .= "   - 90-100: Has ALL required skills plus additional relevant ones\n";
+        $prompt .= "   - 70-89: Has most required skills with strong proficiency\n";
+        $prompt .= "   - 50-69: Has some required skills, missing key ones\n";
+        $prompt .= "   - 30-49: Has few required skills, mostly transferable skills\n";
+        $prompt .= "   - 0-29: Lacks most required skills\n\n";
         
         $prompt .= "2. EXPERIENCE MATCH (Weight: {$settings->experience_weight}%)\n";
-        $prompt .= "   - Evaluate total years of relevant work experience vs. minimum requirement ({$minExperience} years)\n";
-        $prompt .= "   - Assess the quality and relevance of their past roles to this position\n";
-        $prompt .= "   - Consider career progression and growth\n";
-        $prompt .= "   - Evaluate industry experience relevance\n";
-        $prompt .= "   - Reference the job description to determine relevance\n\n";
+        $prompt .= "   Score 0-100 based on:\n";
+        $prompt .= "   - 90-100: Significantly exceeds minimum ({$minExperience} years), highly relevant roles\n";
+        $prompt .= "   - 70-89: Meets/exceeds minimum with relevant experience\n";
+        $prompt .= "   - 50-69: Close to minimum or relevant but different industry\n";
+        $prompt .= "   - 30-49: Below minimum but has some related experience\n";
+        $prompt .= "   - 0-29: Well below minimum with little relevant experience\n\n";
         
         $prompt .= "3. EDUCATION MATCH (Weight: {$settings->education_weight}%)\n";
-        $prompt .= "   - Compare education level: Required is '{$requiredEducation}'\n";
-        $prompt .= "   - Compare field of study with required areas: {$requiredAreasFormatted}\n";
-        $prompt .= "   - Consider completion status (completed vs. in progress)\n";
-        $prompt .= "   - Evaluate how well their educational background prepares them for this role\n\n";
+        $prompt .= "   Score 0-100 based on:\n";
+        $prompt .= "   - 90-100: Exceeds required level in highly relevant field\n";
+        $prompt .= "   - 70-89: Meets required level in relevant field\n";
+        $prompt .= "   - 50-69: Meets level but field is somewhat related\n";
+        $prompt .= "   - 30-49: Below required level or unrelated field\n";
+        $prompt .= "   - 0-29: Significantly below requirements\n\n";
         
-        $prompt .= "4. ADDITIONAL QUALIFICATIONS BONUS (Bonus: {$settings->qualification_bonus}%)\n";
-        $prompt .= "   - Evaluate professional certifications relevant to the role\n";
-        $prompt .= "   - Consider licenses, awards, or recognitions\n";
-        $prompt .= "   - Assess specialized training that adds value\n";
-        $prompt .= "   - This is a BONUS score that can boost the overall rating\n\n";
+        $prompt .= "4. ADDITIONAL QUALIFICATIONS (Bonus: up to {$settings->qualification_bonus} points)\n";
+        $prompt .= "   THIS IS A BONUS SCORE - be generous! Having ANY professional qualifications deserves points.\n";
+        $prompt .= "   Score 0-100 based on VALUE and RELEVANCE:\n\n";
+        $prompt .= "   IMPORTANT SCORING GUIDELINES:\n";
+        $prompt .= "   - 80-100: Has industry-recognized certifications highly relevant to this role (e.g., AWS for cloud roles, CPA for accounting, PMP for PM)\n";
+        $prompt .= "   - 60-79: Has professional certifications that are relevant and valuable (e.g., Scrum Master, Google Analytics, relevant technical certs)\n";
+        $prompt .= "   - 40-59: Has certifications that show professionalism and learning initiative, even if not directly related\n";
+        $prompt .= "   - 20-39: Has basic certifications or training that demonstrates skill development\n";
+        $prompt .= "   - 1-19: Has some form of additional training or qualification\n";
+        $prompt .= "   - 0: ONLY if candidate has NO qualifications listed at all\n\n";
+        $prompt .= "   BE GENEROUS: If a candidate took the time to get certified in ANYTHING professional, they deserve at least 20-40 points.\n";
+        $prompt .= "   Examples of VALUABLE qualifications:\n";
+        $prompt .= "   - ANY industry certifications (AWS, Microsoft, Google, Cisco, Oracle, etc.)\n";
+        $prompt .= "   - Professional certifications (CPA, CFA, PMP, SHRM, PHR, etc.)\n";
+        $prompt .= "   - Specialized training or licenses in their field\n";
+        $prompt .= "   - Relevant online course completions from recognized platforms\n";
+        $prompt .= "   - Professional memberships with certification requirements\n\n";
+        $prompt .= "   REMEMBER: Qualifications show initiative, continuous learning, and professional commitment.\n";
+        $prompt .= "   If you see ANY certifications/qualifications listed, score at minimum 30/100 unless completely irrelevant.\n\n";
+        $prompt .= "   Consider:\n";
+        $prompt .= "   - Is this certification recognized in the industry?\n";
+        $prompt .= "   - Does it require significant expertise to obtain?\n";
+        $prompt .= "   - Does it directly relate to job responsibilities?\n";
+        $prompt .= "   - Is it current/maintained?\n\n";
         
         $prompt .= "=== EVALUATION INSTRUCTIONS ===\n\n";
-        $prompt .= "1. READ ALL JOB REQUIREMENTS CAREFULLY including skills, experience, education level, areas of study, description, and additional requirements\n";
-        $prompt .= "2. READ THE COMPLETE CANDIDATE PROFILE including all skills, experiences, education, and qualifications\n";
-        $prompt .= "3. For EACH scoring criterion, explicitly consider how the candidate matches the specific requirements\n";
-        $prompt .= "4. Be thorough but fair - recognize transferable skills and relevant experience even if not exact matches\n";
-        $prompt .= "5. Your reasoning should reference specific requirements and how the candidate meets or doesn't meet them\n";
-        $prompt .= "6. Provide scores between 0-100 for each criterion based on your analysis\n\n";
+        $prompt .= "1. READ ALL JOB REQUIREMENTS CAREFULLY\n";
+        $prompt .= "2. READ THE COMPLETE CANDIDATE PROFILE\n";
+        $prompt .= "3. For qualifications, ASK YOURSELF: 'Do these certifications make this candidate MORE CAPABLE of performing this specific job?' If yes, score higher. If they're generic or unrelated, score lower.\n";
+        $prompt .= "4. Be consistent: similar qualifications across candidates should receive similar scores\n";
+        $prompt .= "5. Remember: qualifications are a BONUS. Even a score of 50/100 will give meaningful bonus points.\n\n";
         
         $prompt .= "=== REQUIRED RESPONSE FORMAT ===\n\n";
         $prompt .= "You MUST respond in EXACTLY this format (no markdown, no code blocks, just plain text):\n\n";
         $prompt .= "SKILLS_SCORE: [number between 0-100]\n";
         $prompt .= "EXPERIENCE_SCORE: [number between 0-100]\n";
         $prompt .= "EDUCATION_SCORE: [number between 0-100]\n";
-        $prompt .= "QUALIFICATION_BONUS: [number between 0-100]\n";
-        $prompt .= "TOTAL_SCORE: [calculated weighted total, 0-100]\n";
-        $prompt .= "REASONING: [2-3 sentences explaining your evaluation, referencing specific requirements and how candidate meets/doesn't meet them]\n\n";
+        $prompt .= "QUALIFICATION_BONUS: [number between 0-100, will be converted to bonus points]\n";
+        $prompt .= "REASONING: [2-4 sentences explaining your evaluation. Specifically mention what qualifications you found valuable and why, or explain why you scored qualifications low.]\n\n";
         
         $prompt .= "Now evaluate this candidate against ALL the requirements listed above.";
     
