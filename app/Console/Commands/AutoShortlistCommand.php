@@ -450,7 +450,7 @@ class AutoShortlistCommand extends Command
         if ($user->experiences && $user->experiences->isNotEmpty()) {
             foreach ($user->experiences as $exp) {
                 $experiences[] = [
-                    'title' => $exp->title ?? '',
+                    'title' => $exp->job_title ?? '',
                     'company' => $exp->company ?? '',
                     'duration' => ($exp->start_date ?? '') . ' to ' . ($exp->end_date ?? 'Present'),
                     'description' => $exp->description ?? ''
@@ -746,7 +746,7 @@ class AutoShortlistCommand extends Command
         
         $formatted = [];
         foreach ($experiences as $exp) {
-            $formatted[] = "{$exp['title']} at {$exp['company']} ({$exp['duration']})";
+            $formatted[] = "{$exp['job_title']} at {$exp['company']} ({$exp['duration']})";
         }
         return implode(' | ', $formatted);
     }
