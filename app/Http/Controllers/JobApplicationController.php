@@ -593,7 +593,8 @@ public function exportByJob($jobId)
             'I' => 'Experience (Years)',
             'J' => 'Education Level',
             'K' => 'Skills',
-            'L' => 'AI Reasoning'
+            'L' => 'AI Reasoning',
+            'M' => 'Last Updated'
         ];
 
         foreach ($headers as $column => $header) {
@@ -660,10 +661,10 @@ public function exportByJob($jobId)
             $skillsString = $skills->isEmpty() ? 'N/A' : $skills->pluck('name')->implode(', ');
             $sheet->setCellValue('K' . $row, $skillsString);
 
-            // Cover letter preview
-            $sheet->setCellValue('L' . $row, $application->score->reasoning ?? 'Not evaluated',
-        );
+            // AI Reasoning
+            $sheet->setCellValue('L' . $row, $application->score->reasoning ?? 'Not evaluated');
 
+            // Last Updated
             $sheet->setCellValue('M' . $row, $application->updated_at->format('M j, Y g:i A'));
 
             // Row coloring based on status

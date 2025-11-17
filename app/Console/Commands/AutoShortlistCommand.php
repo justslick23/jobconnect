@@ -507,7 +507,7 @@ class AutoShortlistCommand extends Command
         $prompt .= "IMPORTANT: Match candidate's skills against these required skills. Consider exact matches, related skills, and transferable skills.\n\n";
         
         $prompt .= "Minimum Experience Required: {$minExperience} years\n";
-        $prompt .= "IMPORTANT: Evaluate if candidate meets or exceeds this experience requirement.\n\n";
+        $prompt .= "IMPORTANT: Evaluate if candidate meets or exceeds this experience requirement. Also evaluate their roles within that experience.\n\n\n";
         
         $prompt .= "Required Education Level: {$requiredEducation}\n";
         $prompt .= "Required Areas/Fields of Study: {$requiredAreasFormatted}\n";
@@ -515,7 +515,7 @@ class AutoShortlistCommand extends Command
         
         $prompt .= "Job Description:\n{$jobDescription}\n\n";
         
-        $prompt .= "Additional Requirements:\n{$jobRequirements}\n";
+        $prompt .= "Additional Job Requirements:\n{$jobRequirements}\n";
         $prompt .= "IMPORTANT: Consider how well the candidate meets these additional requirements.\n\n";
     
         $prompt .= "=== CANDIDATE PROFILE ===\n\n";
