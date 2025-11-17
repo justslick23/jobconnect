@@ -615,8 +615,10 @@ public function exportByJob($jobId)
 
         foreach ($applications as $application) {
             $sheet->setCellValue('A' . $row, $counter);
-            $sheet->setCellValue('B' . $row, $application->user->name ?? 'N/A');
-            $sheet->setCellValue('C' . $row, $application->user->email ?? 'N/A');
+            $sheet->setCellValue(
+                'B' . $row,
+                ($application->user->profile->first_name ?? 'N/A') . ' ' . ($application->user->profile->last_name ?? '')
+            );            $sheet->setCellValue('C' . $row, $application->user->email ?? 'N/A');
 
             // Phone
             $phone = $application->user->profile->phone ?? 'N/A';
